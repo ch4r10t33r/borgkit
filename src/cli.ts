@@ -1,15 +1,17 @@
 import { Command } from 'commander';
-import { initCommand } from './commands/init';
-import { createCommand } from './commands/create';
-import { runCommand } from './commands/run';
+import { initCommand }     from './commands/init';
+import { createCommand }   from './commands/create';
+import { runCommand }      from './commands/run';
 import { discoverCommand } from './commands/discover';
+import { versionCommand }  from './commands/version';
+import { VERSION }         from './version';
 
 const program = new Command();
 
 program
   .name('sentrix')
   .description('Sentrix CLI — scaffold ERC-8004 compliant, P2P-discoverable agents')
-  .version('0.1.0');
+  .version(VERSION, '-v, --version', 'Print the current Sentrix CLI version');
 
 program
   .command('init <project-name>')
@@ -40,5 +42,10 @@ program
   .option('--host <host>', 'Discovery host', 'localhost')
   .option('--port <port>', 'Discovery port', '3000')
   .action(discoverCommand);
+
+program
+  .command('version')
+  .description('Show detailed version and build info')
+  .action(versionCommand);
 
 program.parse(process.argv);
