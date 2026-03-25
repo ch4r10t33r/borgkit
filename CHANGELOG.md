@@ -4,6 +4,12 @@ All notable changes to `sentrix-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0](https://github.com/ch4r10t33r/sentrix/compare/v1.6.0...v1.7.0) (2026-03-25)
+
+### Features
+
+* **openai:** OpenAI Agents SDK plugin + README refresh ([c2a6f13](https://github.com/ch4r10t33r/sentrix/commit/c2a6f13bf2f9c111a30dbab61957f75db85282df))
+
 ## [1.6.0](https://github.com/ch4r10t33r/sentrix/compare/v1.5.0...v1.6.0) (2026-03-25)
 
 ### Features
