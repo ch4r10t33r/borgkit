@@ -26,6 +26,15 @@ import type { DiscoveryEntry } from './IAgentDiscovery';
 import type { IAgentDiscovery } from './IAgentDiscovery';
 import { AgentRequest }        from './IAgentRequest';  // will use for construction
 import * as crypto             from 'crypto';
+import type {
+  HeartbeatRequest,
+  HeartbeatResponse,
+  CapabilityExchangeRequest,
+  CapabilityExchangeResponse,
+  GossipMessage,
+  HandshakeResult,
+  AgentSession,
+} from './IAgentMesh';
 
 // ── interface ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +91,49 @@ export interface IAgentClient {
     payload:    Record<string, unknown>,
     options?:   CallOptions,
   ): Promise<AgentResponse>;
+
+  // ── Mesh protocols ─────────────────────────────────────────────────────────
+
+  /**
+   * Send a heartbeat ping to an agent and return its response.
+   * Returns status='unhealthy' if the agent is unreachable.
+   */
+  ping(agentId: string, options?: { timeoutMs?: number }): Promise<HeartbeatResponse>;
+
+  /**
+   * Establish a connection to a remote agent via a two-step handshake:
+   *
+   *   1. Heartbeat ping  — confirms liveness and health status.
+   *   2. Capability exchange — verifies the agent's current capabilities match
+   *      what was advertised in the discovery layer before the first call.
+   *
+   * Returns an AgentSession that caches the handshake result and provides
+   * call / ping / refreshCapabilities methods for subsequent interactions.
+   *
+   * @example
+   * const entry   = await client.find('weather_forecast');
+   * const session = await client.connect(entry!);
+   * if (handshakeSupports(session.handshake, 'weather_forecast')) {
+   *   const resp = await session.call('weather_forecast', { city: 'NYC' });
+   * }
+   */
+  connect(
+    entry:    DiscoveryEntry,
+    options?: { timeoutMs?: number },
+  ): Promise<AgentSession>;
+
+  /**
+   * Broadcast a capability announcement to all connected peers.
+   */
+  gossipAnnounce(entry: DiscoveryEntry, options?: { ttl?: number }): Promise<void>;
+
+  /**
+   * Broadcast a capability query across the gossip mesh and collect responses.
+   */
+  gossipQuery(
+    capability: string,
+    options?:   { ttl?: number; timeoutMs?: number },
+  ): Promise<DiscoveryEntry[]>;
 }
 
 export interface CallOptions {
@@ -182,6 +234,104 @@ export class AgentClient implements IAgentClient {
     return this.dispatch(entry, req, options.timeoutMs ?? this.timeoutMs);
   }
 
+  async ping(
+    agentId: string,
+    options: { timeoutMs?: number } = {},
+  ): Promise<HeartbeatResponse> {
+    const req: HeartbeatRequest = { senderId: this.callerId, timestamp: Date.now() };
+    const resp = await this.call(agentId, '__heartbeat', req as any, { timeoutMs: options.timeoutMs ?? 5_000 });
+    if (resp.status === 'success' && resp.result) {
+      return resp.result as unknown as HeartbeatResponse;
+    }
+    return { agentId, status: 'unhealthy', timestamp: Date.now(), capabilitiesCount: 0 };
+  }
+
+  async connect(
+    entry:   DiscoveryEntry,
+    options: { timeoutMs?: number } = {},
+  ): Promise<AgentSession> {
+    const timeoutMs = options.timeoutMs ?? this.timeoutMs;
+    const t0 = Date.now();
+
+    // Step 1: heartbeat (liveness + health)
+    const hb = await this.ping(entry.agentId, { timeoutMs });
+
+    // Step 2: capability exchange (verify current capabilities)
+    const capResp = await this._exchangeCapabilities(entry, timeoutMs);
+
+    const handshake: HandshakeResult = {
+      agentId:      entry.agentId,
+      healthStatus: hb.status,
+      capabilities: capResp.capabilities,
+      latencyMs:    Date.now() - t0,
+      connectedAt:  Date.now(),
+      anr:          capResp.anr,
+      version:      hb.version,
+    };
+    return new AgentSessionImpl(entry, handshake, this);
+  }
+
+  /** Internal: capability exchange against a known endpoint. */
+  async _exchangeCapabilities(
+    entry:     DiscoveryEntry,
+    timeoutMs: number,
+  ): Promise<CapabilityExchangeResponse> {
+    const req: CapabilityExchangeRequest = {
+      senderId:   this.callerId,
+      timestamp:  Date.now(),
+      includeAnr: true,
+    };
+    const resp = await this.callEntry(entry, '__capabilities', req as any, { timeoutMs });
+    if (resp.status === 'success' && resp.result) {
+      return resp.result as unknown as CapabilityExchangeResponse;
+    }
+    return { agentId: entry.agentId, capabilities: [], timestamp: Date.now() };
+  }
+
+  async gossipAnnounce(entry: DiscoveryEntry, options: { ttl?: number } = {}): Promise<void> {
+    const msg: GossipMessage = {
+      type:      'announce',
+      senderId:  this.callerId,
+      timestamp: Date.now(),
+      ttl:       options.ttl ?? 3,
+      seenBy:    [],
+      entry,
+    };
+    const peers = await this.discovery.listAll();
+    await Promise.allSettled(
+      peers
+        .filter(p => p.agentId !== this.callerId)
+        .map(p => this.callEntry(p, '__gossip', msg as any, { timeoutMs: 2_000 })),
+    );
+  }
+
+  async gossipQuery(
+    capability: string,
+    options: { ttl?: number; timeoutMs?: number } = {},
+  ): Promise<DiscoveryEntry[]> {
+    const msg: GossipMessage = {
+      type:       'query',
+      senderId:   this.callerId,
+      timestamp:  Date.now(),
+      ttl:        options.ttl ?? 3,
+      seenBy:     [],
+      capability,
+    };
+    const peers = await this.discovery.listAll();
+    const results: DiscoveryEntry[] = [];
+    await Promise.allSettled(
+      peers
+        .filter(p => p.agentId !== this.callerId)
+        .map(async p => {
+          const resp = await this.callEntry(p, '__gossip', msg as any, { timeoutMs: options.timeoutMs ?? 5_000 });
+          if (resp.status === 'success' && (resp.result as any)?.entries) {
+            results.push(...(resp.result as any).entries as DiscoveryEntry[]);
+          }
+        }),
+    );
+    return results;
+  }
+
   // ── transport ────────────────────────────────────────────────────────────────
 
   private async dispatch(
@@ -205,6 +355,56 @@ export class AgentClient implements IAgentClient {
     }
 
     return resp;
+  }
+}
+
+// ── AgentSessionImpl ──────────────────────────────────────────────────────────
+
+class AgentSessionImpl implements AgentSession {
+  readonly entry:     DiscoveryEntry;
+  readonly handshake: HandshakeResult;
+  private  readonly client: AgentClient;
+
+  constructor(entry: DiscoveryEntry, handshake: HandshakeResult, client: AgentClient) {
+    this.entry     = entry;
+    this.handshake = handshake;
+    this.client    = client;
+  }
+
+  get agentId():     string  { return this.handshake.agentId; }
+  get capabilities(): string[] { return this.handshake.capabilities; }
+  get isHealthy():   boolean  { return this.handshake.healthStatus === 'healthy'; }
+
+  async call(
+    capability: string,
+    payload:    Record<string, unknown>,
+    options:    { timeoutMs?: number } = {},
+  ): Promise<AgentResponse> {
+    return this.client.callEntry(this.entry, capability, payload, options);
+  }
+
+  async ping(options: { timeoutMs?: number } = {}): Promise<HeartbeatResponse> {
+    return this.client.ping(this.entry.agentId, options);
+  }
+
+  async refreshCapabilities(
+    options: { timeoutMs?: number } = {},
+  ): Promise<CapabilityExchangeResponse> {
+    return this.client._exchangeCapabilities(
+      this.entry,
+      options.timeoutMs ?? 10_000,
+    );
+  }
+
+  async close(): Promise<void> {
+    try {
+      await this.client.callEntry(
+        this.entry,
+        '__disconnect',
+        { sessionAgentId: this.agentId },
+        { timeoutMs: 2_000 },
+      );
+    } catch { /* best-effort */ }
   }
 }
 

@@ -197,7 +197,7 @@ export class WrappedAgent<TAgent, TNativeInput, TNativeOutput> implements IAgent
       registeredAt: new Date().toISOString(),
     };
     await registry.register(entry);
-    console.log(`[Sentrix] ${this.plugin.config.name} registered to ${this.plugin.config.discoveryType ?? 'local'} discovery`);
+    printStartupBanner(this);
   }
 
   async unregisterDiscovery(): Promise<void> {
@@ -238,4 +238,45 @@ export class WrappedAgent<TAgent, TNativeInput, TNativeOutput> implements IAgent
       return null;
     }
   }
+}
+
+// ── startup banner ─────────────────────────────────────────────────────────────
+
+function printStartupBanner(agent: WrappedAgent<unknown, unknown, unknown>): void {
+  const cfg  = agent['plugin'].config;
+  const caps = agent.getCapabilities();
+
+  const R   = '\x1b[0m';
+  const B   = '\x1b[1m';
+  const C   = '\x1b[36m';
+  const G   = '\x1b[32m';
+  const Y   = '\x1b[33m';
+  const DIM = '\x1b[2m';
+  const line = `${DIM}${'─'.repeat(60)}${R}`;
+
+  const endpoint = `${cfg.tls ? 'https' : (cfg.protocol ?? 'http')}://${cfg.host ?? 'localhost'}:${cfg.port ?? 8080}`;
+
+  const lines: string[] = [
+    '',
+    line,
+    `  ${B}${C}Sentrix Agent Online${R}  ${DIM}v${cfg.version ?? '?'}${R}`,
+    line,
+    `  ${B}Name       ${R}  ${cfg.name}`,
+    `  ${B}Agent ID   ${R}  ${G}${agent.agentId}${R}`,
+    ...(cfg.owner && cfg.owner !== 'anonymous' ? [`  ${B}Owner      ${R}  ${cfg.owner}`] : []),
+    `  ${B}Endpoint   ${R}  ${endpoint}`,
+    `  ${B}Discovery  ${R}  ${cfg.discoveryType ?? 'local'}${cfg.discoveryUrl ? `  →  ${cfg.discoveryUrl}` : ''}`,
+    ...(agent.metadataUri ? [`  ${B}Metadata   ${R}  ${agent.metadataUri}`] : []),
+    `  ${B}Capabilities${R} (${caps.length})`,
+    ...caps.map(cap => `           ${G}•${R} ${cap}`),
+    line,
+    '',
+  ];
+
+  // getPeerId is async — print synchronously without it; peer ID appears after if available
+  console.log(lines.join('\n'));
+
+  agent.getPeerId().then(peerId => {
+    if (peerId) console.log(`  ${B}${DIM}Peer ID${R}  ${DIM}${peerId}${R}\n`);
+  }).catch(() => {/* no key configured */});
 }

@@ -267,6 +267,26 @@ class WrappedAgent(IAgent, Generic[TAgent]):
         return list(self._caps.keys())
 
     async def handle_request(self, req: AgentRequest) -> AgentResponse:
+        # ── reserved mesh protocol capabilities ───────────────────────────
+        if req.capability == "__heartbeat":
+            from interfaces.iagent_mesh import HeartbeatRequest
+            hb_req = HeartbeatRequest.from_dict(req.payload)
+            hb_resp = await self.handle_heartbeat(hb_req)
+            return AgentResponse.success(req.request_id, hb_resp.to_dict())
+
+        if req.capability == "__capabilities":
+            from interfaces.iagent_mesh import CapabilityExchangeRequest
+            cap_req = CapabilityExchangeRequest.from_dict(req.payload)
+            cap_resp = await self.handle_capability_exchange(cap_req)
+            return AgentResponse.success(req.request_id, cap_resp.to_dict())
+
+        if req.capability == "__gossip":
+            from interfaces.iagent_mesh import GossipMessage
+            gossip_msg = GossipMessage.from_dict(req.payload)
+            await self.handle_gossip(gossip_msg)
+            return AgentResponse.success(req.request_id, {"received": True})
+        # ─────────────────────────────────────────────────────────────────
+
         descriptor = self._caps.get(req.capability)
         if not descriptor:
             return AgentResponse.error(
@@ -312,7 +332,7 @@ class WrappedAgent(IAgent, Generic[TAgent]):
             registered_at=datetime.now(timezone.utc).isoformat(),
             metadata_uri=self.metadata_uri,
         ))
-        print(f"[Sentrix] {self.config.name} registered to {self.config.discovery_type} discovery")
+        _print_startup_banner(self)
 
     async def unregister_discovery(self) -> None:
         from discovery.http_discovery import DiscoveryFactory
@@ -321,6 +341,35 @@ class WrappedAgent(IAgent, Generic[TAgent]):
             http_base_url=self.config.discovery_url,
         )
         await registry.unregister(self.agent_id)
+
+    async def handle_heartbeat(self, req):
+        from interfaces.iagent_mesh import HeartbeatRequest, HeartbeatResponse
+        if isinstance(req, dict):
+            req = HeartbeatRequest.from_dict(req)
+        return HeartbeatResponse(
+            agent_id=self.agent_id,
+            status="healthy",
+            capabilities_count=len(self._caps),
+            version=self.config.version,
+            nonce=req.nonce,
+        )
+
+    async def handle_capability_exchange(self, req):
+        from interfaces.iagent_mesh import CapabilityExchangeRequest, CapabilityExchangeResponse
+        import dataclasses
+        if isinstance(req, dict):
+            req = CapabilityExchangeRequest.from_dict(req)
+        anr_dict = None
+        if req.include_anr:
+            try:
+                anr_dict = dataclasses.asdict(self.get_anr())
+            except Exception:
+                pass
+        return CapabilityExchangeResponse(
+            agent_id=self.agent_id,
+            capabilities=list(self._caps.keys()),
+            anr=anr_dict,
+        )
 
     # ── ANR / Identity exposure ────────────────────────────────────────────
 
@@ -369,3 +418,47 @@ class WrappedAgent(IAgent, Generic[TAgent]):
             return None
         except Exception:
             return None
+
+
+# ── startup banner ─────────────────────────────────────────────────────────────
+
+def _print_startup_banner(agent: "WrappedAgent") -> None:
+    """
+    Print a rich startup banner to stdout when an agent registers with discovery.
+
+    Displays: agent identity (ANR), capabilities, network endpoint, peer ID,
+    and discovery backend — everything a developer needs to confirm the agent
+    is on the mesh correctly.
+    """
+    caps = agent.get_capabilities()
+    peer_id = agent.get_peer_id()
+    cfg = agent.config
+
+    W  = "\033[0m"   # reset
+    B  = "\033[1m"   # bold
+    C  = "\033[36m"  # cyan
+    G  = "\033[32m"  # green
+    Y  = "\033[33m"  # yellow
+    DIM = "\033[2m"  # dim
+
+    line = f"{DIM}{'─' * 60}{W}"
+    print(f"\n{line}")
+    print(f"  {B}{C}Sentrix Agent Online{W}  {DIM}v{cfg.version}{W}")
+    print(line)
+    print(f"  {B}Name       {W}  {cfg.name}")
+    print(f"  {B}Agent ID   {W}  {G}{agent.agent_id}{W}")
+    if cfg.owner and cfg.owner != "anonymous":
+        print(f"  {B}Owner      {W}  {cfg.owner}")
+    print(f"  {B}Endpoint   {W}  {'https' if cfg.tls else cfg.protocol}://{cfg.host}:{cfg.port}")
+    print(f"  {B}Discovery  {W}  {cfg.discovery_type}" +
+          (f"  →  {cfg.discovery_url}" if cfg.discovery_url else ""))
+    if peer_id:
+        print(f"  {B}Peer ID    {W}  {DIM}{peer_id}{W}")
+    if cfg.metadata_uri:
+        print(f"  {B}Metadata   {W}  {cfg.metadata_uri}")
+    print(f"  {B}Capabilities{W} ({len(caps)})")
+    for cap in caps:
+        pricing = cfg.x402_pricing.get(cap)
+        price_str = f"  {Y}[x402 ${pricing.amount_usd:.4f}]{W}" if pricing and hasattr(pricing, "amount_usd") else ""
+        print(f"           {G}•{W} {cap}{price_str}")
+    print(f"{line}\n")

@@ -1,0 +1,169 @@
+/**
+ * Sentrix Mesh Protocol — Heartbeat, Capability Exchange, and Gossip
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Defines message types and interfaces for the three built-in agent-to-agent
+ * protocols that every Sentrix agent understands:
+ *
+ *   1. Heartbeat          — liveness ping with status payload
+ *   2. Capability Exchange — direct capability query (bypasses discovery layer)
+ *   3. Gossip             — capability announcements fan-out across the mesh
+ *
+ * Reserved capability names (intercepted before normal dispatch):
+ *   "__heartbeat"    → HeartbeatRequest / HeartbeatResponse
+ *   "__capabilities" → CapabilityExchangeRequest / CapabilityExchangeResponse
+ *   "__gossip"       → GossipMessage (fire-and-forget)
+ */
+
+import type { DiscoveryEntry } from './IAgentDiscovery';
+
+// ── Heartbeat ─────────────────────────────────────────────────────────────────
+
+export interface HeartbeatRequest {
+  senderId:  string;
+  timestamp: number;   // Unix ms
+  nonce?:    string;
+}
+
+export interface HeartbeatResponse {
+  agentId:           string;
+  status:            'healthy' | 'degraded' | 'unhealthy';
+  timestamp:         number;
+  capabilitiesCount: number;
+  uptimeMs?:         number;
+  version?:          string;
+  nonce?:            string;
+}
+
+// ── Capability Exchange ───────────────────────────────────────────────────────
+
+export interface CapabilityExchangeRequest {
+  senderId:   string;
+  timestamp:  number;
+  includeAnr: boolean;  // if true, response includes full DiscoveryEntry
+}
+
+export interface CapabilityExchangeResponse {
+  agentId:      string;
+  capabilities: string[];
+  timestamp:    number;
+  anr?:         DiscoveryEntry;  // full ANR record when includeAnr=true
+}
+
+// ── Gossip ────────────────────────────────────────────────────────────────────
+
+export type GossipMessageType = 'announce' | 'revoke' | 'heartbeat' | 'query';
+
+export interface GossipMessage {
+  type:        GossipMessageType;
+  senderId:    string;
+  timestamp:   number;
+  ttl:         number;         // decremented each hop; dropped when 0
+  seenBy:      string[];       // agent IDs that have forwarded this message
+  entry?:      DiscoveryEntry; // present for announce/revoke
+  capability?: string;         // present for query
+  nonce?:      string;
+}
+
+export function forwardGossip(msg: GossipMessage, forwarderId: string): GossipMessage {
+  return {
+    ...msg,
+    ttl:    msg.ttl - 1,
+    seenBy: [...msg.seenBy, forwarderId],
+  };
+}
+
+// ── IGossipProtocol ───────────────────────────────────────────────────────────
+
+export type GossipHandler = (message: GossipMessage) => Promise<void>;
+
+export interface IGossipProtocol {
+  /**
+   * Fan out a gossip message to all currently connected peers.
+   */
+  broadcast(message: GossipMessage): Promise<void>;
+
+  /**
+   * Process an incoming gossip message from a peer.
+   * Implementations should deduplicate, apply to local state, and re-forward.
+   */
+  receive(message: GossipMessage): Promise<void>;
+
+  /** Register a callback invoked for every incoming gossip message. */
+  subscribe(handler: GossipHandler): void;
+
+  /** Return agent IDs of currently connected peers. */
+  peers(): string[];
+
+  /** Connect to a new peer. */
+  addPeer(agentId: string, endpoint: string): Promise<void>;
+
+  /** Disconnect from a peer. */
+  removePeer(agentId: string): Promise<void>;
+}
+
+// ── Handshake ─────────────────────────────────────────────────────────────────
+
+/**
+ * Result of the connection handshake performed by AgentClient.connect().
+ *
+ * Capability exchange is part of the handshake — it verifies that the
+ * discovered agent still advertises the capabilities you need before the
+ * first call is committed.
+ */
+export interface HandshakeResult {
+  agentId:      string;
+  healthStatus: 'healthy' | 'degraded' | 'unhealthy';
+  capabilities: string[];
+  latencyMs:    number;
+  connectedAt:  number;   // Unix ms
+  anr?:         DiscoveryEntry;
+  version?:     string;
+}
+
+export function handshakeSupports(h: HandshakeResult, capability: string): boolean {
+  return h.capabilities.includes(capability);
+}
+
+// ── AgentSession ──────────────────────────────────────────────────────────────
+
+/**
+ * An active connection to a remote agent, established by AgentClient.connect().
+ *
+ * Holds the handshake result (capabilities + health snapshot) and provides
+ * call / ping / refreshCapabilities methods that reuse the discovered endpoint
+ * without re-querying the discovery layer on every request.
+ *
+ * @example
+ * const session = await client.connect(entry);
+ * if (!handshakeSupports(session.handshake, 'weather_forecast')) {
+ *   throw new Error('Agent no longer supports weather_forecast');
+ * }
+ * const resp = await session.call('weather_forecast', { city: 'NYC' });
+ */
+export interface AgentSession {
+  readonly entry:     DiscoveryEntry;
+  readonly handshake: HandshakeResult;
+
+  get agentId():     string;
+  get capabilities(): string[];
+  get isHealthy():   boolean;
+
+  /** Call a capability on this agent using the established session. */
+  call(
+    capability: string,
+    payload:    Record<string, unknown>,
+    options?:   { timeoutMs?: number },
+  ): Promise<import('./IAgentResponse').AgentResponse>;
+
+  /** Re-check liveness of this agent. */
+  ping(options?: { timeoutMs?: number }): Promise<HeartbeatResponse>;
+
+  /**
+   * Re-run the capability exchange for this agent.
+   * Use after a period of inactivity to verify cached capabilities are still valid.
+   */
+  refreshCapabilities(options?: { timeoutMs?: number }): Promise<CapabilityExchangeResponse>;
+
+  /** Signal to the remote agent that this session is ending (best-effort). */
+  close(): Promise<void>;
+}

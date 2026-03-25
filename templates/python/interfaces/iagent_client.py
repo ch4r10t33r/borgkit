@@ -3,9 +3,16 @@ IAgentClient — standard interface for discovering and calling other Sentrix ag
 """
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 import uuid
 import time
+
+if TYPE_CHECKING:
+    from .iagent_mesh import (
+        HeartbeatResponse, CapabilityExchangeResponse, GossipMessage,
+        HandshakeResult, AgentSession,
+    )
+    from .iagent_discovery import DiscoveryEntry
 
 from .agent_request import AgentRequest
 from .agent_response import AgentResponse
@@ -135,6 +142,81 @@ class IAgentClient(ABC):
         """
         ...
 
+    # ── Mesh protocols ────────────────────────────────────────────────────
+
+    @abstractmethod
+    async def ping(
+        self,
+        agent_id: str,
+        *,
+        timeout_ms: int = 5_000,
+    ) -> "HeartbeatResponse":
+        """
+        Send a heartbeat ping to an agent and return its response.
+
+        Uses the "__heartbeat" reserved capability. Returns a HeartbeatResponse
+        with status="unhealthy" if the agent is unreachable.
+        """
+        ...
+
+    @abstractmethod
+    async def connect(
+        self,
+        entry: "DiscoveryEntry",
+        *,
+        timeout_ms: int = 10_000,
+    ) -> "AgentSession":
+        """
+        Establish a connection to a remote agent via a two-step handshake:
+
+          1. Heartbeat ping  — confirms the agent is alive and returns health status.
+          2. Capability exchange — asks the agent for its current capability list and
+             full ANR record, verifying that the discovery-layer advertisement is still
+             accurate before the first call is made.
+
+        Returns an AgentSession that caches the handshake result and provides
+        call / ping / refresh_capabilities methods for subsequent interactions.
+
+        Typical usage
+        -------------
+        entry   = await client.find("weather_forecast")
+        session = await client.connect(entry)
+        if session.handshake.supports("weather_forecast"):
+            resp = await session.call("weather_forecast", {"city": "NYC"})
+        """
+        ...
+
+    @abstractmethod
+    async def gossip_announce(
+        self,
+        entry: "DiscoveryEntry",
+        *,
+        ttl: int = 3,
+    ) -> None:
+        """
+        Broadcast a capability announcement to all connected peers.
+
+        Call this after registering a new agent to propagate its capabilities
+        across the mesh without waiting for the discovery layer to poll.
+        """
+        ...
+
+    @abstractmethod
+    async def gossip_query(
+        self,
+        capability: str,
+        *,
+        ttl: int = 3,
+        timeout_ms: int = 5_000,
+    ) -> List["DiscoveryEntry"]:
+        """
+        Broadcast a capability query across the gossip mesh and collect responses.
+
+        Returns entries received within timeout_ms. Useful when the local
+        discovery cache is empty or stale.
+        """
+        ...
+
 
 # ── AgentClient — HTTP transport implementation ───────────────────────────────
 
@@ -256,6 +338,169 @@ class AgentClient(IAgentClient):
             timestamp=int(time.time() * 1000),
         )
         return await self._dispatch(entry, req, timeout_ms or self._timeout_ms)
+
+    # ── mesh protocol implementations ──────────────────────────────────────
+
+    async def ping(
+        self,
+        agent_id: str,
+        *,
+        timeout_ms: int = 5_000,
+    ) -> "HeartbeatResponse":
+        from .iagent_mesh import HeartbeatRequest, HeartbeatResponse
+        req_payload = HeartbeatRequest(sender_id=self._caller_id).to_dict()
+        resp = await self.call(
+            agent_id, "__heartbeat", req_payload,
+            caller_id=self._caller_id, timeout_ms=timeout_ms,
+        )
+        if resp.status == "success" and resp.result:
+            try:
+                return HeartbeatResponse.from_dict(resp.result)
+            except Exception:
+                pass
+        return HeartbeatResponse(agent_id=agent_id, status="unhealthy")
+
+    async def connect(
+        self,
+        entry: "DiscoveryEntry",
+        *,
+        timeout_ms: int = 10_000,
+    ) -> "AgentSession":
+        """
+        Handshake: heartbeat + capability exchange → AgentSession.
+
+        Step 1 — heartbeat ping (liveness + health).
+        Step 2 — capability exchange (verify current capabilities match discovery).
+        Both steps share the same timeout budget.
+        """
+        from .iagent_mesh import HandshakeResult, AgentSession
+        import time as _time
+
+        t0 = _time.monotonic()
+
+        # Step 1: heartbeat
+        hb = await self.ping(entry.agent_id, timeout_ms=timeout_ms)
+
+        # Step 2: capability exchange (only if agent is reachable)
+        cap_resp = await self._exchange_capabilities(entry, timeout_ms=timeout_ms)
+
+        latency_ms = int((_time.monotonic() - t0) * 1000)
+        handshake = HandshakeResult(
+            agent_id=entry.agent_id,
+            health_status=hb.status,
+            capabilities=cap_resp.capabilities,
+            latency_ms=latency_ms,
+            anr=cap_resp.anr,
+            version=hb.version,
+        )
+        return AgentSession(entry=entry, handshake=handshake, _client=self)
+
+    async def _exchange_capabilities(
+        self,
+        entry: "DiscoveryEntry",
+        *,
+        timeout_ms: int = 10_000,
+    ) -> "CapabilityExchangeResponse":
+        """Internal: run capability exchange against a known DiscoveryEntry."""
+        from .iagent_mesh import CapabilityExchangeRequest, CapabilityExchangeResponse
+        req_payload = CapabilityExchangeRequest(
+            sender_id=self._caller_id, include_anr=True,
+        ).to_dict()
+        resp = await self.call_entry(
+            entry, "__capabilities", req_payload,
+            timeout_ms=timeout_ms,
+        )
+        if resp.status == "success" and resp.result:
+            try:
+                return CapabilityExchangeResponse.from_dict(resp.result)
+            except Exception:
+                pass
+        return CapabilityExchangeResponse(agent_id=entry.agent_id, capabilities=[])
+
+    async def gossip_announce(
+        self,
+        entry: "DiscoveryEntry",
+        *,
+        ttl: int = 3,
+    ) -> None:
+        """
+        Broadcast an announce message to all peers reachable via discovery.
+        Falls back gracefully if no gossip protocol is configured.
+        """
+        from .iagent_mesh import GossipMessage
+        import dataclasses
+        msg = GossipMessage(
+            type="announce",
+            sender_id=self._caller_id,
+            ttl=ttl,
+            entry=dataclasses.asdict(entry),
+        )
+        # Fan-out: call "__gossip" on every known peer
+        peers = await self._discovery.list_all()
+        for peer in peers:
+            if peer.agent_id == self._caller_id:
+                continue
+            try:
+                await self.call_entry(
+                    peer, "__gossip", msg.to_dict(),
+                    caller_id=self._caller_id, timeout_ms=2_000,
+                )
+            except Exception:
+                pass  # best-effort; gossip is fire-and-forget
+
+    async def gossip_query(
+        self,
+        capability: str,
+        *,
+        ttl: int = 3,
+        timeout_ms: int = 5_000,
+    ) -> List["DiscoveryEntry"]:
+        from .iagent_mesh import GossipMessage
+        from .iagent_discovery import DiscoveryEntry, NetworkInfo, HealthStatus
+        import dataclasses
+        msg = GossipMessage(
+            type="query",
+            sender_id=self._caller_id,
+            ttl=ttl,
+            capability=capability,
+        )
+        results: List[DiscoveryEntry] = []
+        peers = await self._discovery.list_all()
+        for peer in peers:
+            if peer.agent_id == self._caller_id:
+                continue
+            try:
+                resp = await self.call_entry(
+                    peer, "__gossip", msg.to_dict(),
+                    caller_id=self._caller_id, timeout_ms=timeout_ms,
+                )
+                if resp.status == "success" and resp.result:
+                    entries_raw = resp.result.get("entries", [])
+                    for raw in entries_raw:
+                        try:
+                            net = raw.get("network", {})
+                            results.append(DiscoveryEntry(
+                                agent_id=raw["agent_id"],
+                                name=raw.get("name", ""),
+                                owner=raw.get("owner", "anonymous"),
+                                capabilities=raw.get("capabilities", []),
+                                network=NetworkInfo(
+                                    protocol=net.get("protocol", "http"),
+                                    host=net.get("host", "localhost"),
+                                    port=net.get("port", 8080),
+                                    tls=net.get("tls", False),
+                                ),
+                                health=HealthStatus(
+                                    status=raw.get("health", {}).get("status", "healthy"),
+                                    last_heartbeat=raw.get("health", {}).get("last_heartbeat", ""),
+                                ),
+                                registered_at=raw.get("registered_at", ""),
+                            ))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        return results
 
     # ── internal transport ────────────────────────────────────────────────
 

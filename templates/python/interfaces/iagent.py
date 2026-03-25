@@ -20,6 +20,7 @@ from .agent_response import AgentResponse
 
 if TYPE_CHECKING:
     from .iagent_discovery import DiscoveryEntry
+    from .iagent_mesh import HeartbeatRequest, HeartbeatResponse, CapabilityExchangeRequest, CapabilityExchangeResponse, GossipMessage
 
 
 @dataclass
@@ -82,6 +83,53 @@ class IAgent(ABC):
     async def check_permission(self, caller: str, capability: str) -> bool:
         """Return True if `caller` is permitted to invoke `capability`."""
         return True  # open by default; override for production
+
+    # ── Mesh protocols (heartbeat / capability exchange / gossip) ──────────
+
+    async def handle_heartbeat(self, req: "HeartbeatRequest") -> "HeartbeatResponse":
+        """
+        Respond to a heartbeat ping from another agent.
+
+        Default implementation returns status="healthy" with capability count.
+        Override to add custom health checks (DB reachability, model status, etc.)
+        """
+        from .iagent_mesh import HeartbeatResponse
+        return HeartbeatResponse(
+            agent_id=self.agent_id,
+            status="healthy",
+            capabilities_count=len(self.get_capabilities()),
+        )
+
+    async def handle_capability_exchange(
+        self, req: "CapabilityExchangeRequest"
+    ) -> "CapabilityExchangeResponse":
+        """
+        Respond to a direct capability query from another agent.
+
+        Default implementation returns capabilities and the full ANR record.
+        """
+        from .iagent_mesh import CapabilityExchangeResponse
+        anr_dict = None
+        if req.include_anr:
+            try:
+                import dataclasses
+                anr_dict = dataclasses.asdict(self.get_anr())
+            except Exception:
+                pass
+        return CapabilityExchangeResponse(
+            agent_id=self.agent_id,
+            capabilities=self.get_capabilities(),
+            anr=anr_dict,
+        )
+
+    async def handle_gossip(self, msg: "GossipMessage") -> None:
+        """
+        Process an incoming gossip message.
+
+        Default: no-op. Override to act on announce/revoke/query gossip
+        or plug in a GossipDiscovery backend.
+        """
+        pass
 
     # ── ANR / Identity exposure ────────────────────────────────────────────
     @abstractmethod

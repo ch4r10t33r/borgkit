@@ -1,6 +1,13 @@
 import { AgentRequest }   from './IAgentRequest';
 import { AgentResponse }  from './IAgentResponse';
 import { DiscoveryEntry } from './IAgentDiscovery';
+import type {
+  HeartbeatRequest,
+  HeartbeatResponse,
+  CapabilityExchangeRequest,
+  CapabilityExchangeResponse,
+  GossipMessage,
+} from './IAgentMesh';
 
 /**
  * Sentrix agent interface.
@@ -48,6 +55,26 @@ export interface IAgent {
   // ─── Delegation / permissions (optional) ─────────────────────────────────
   /** Return true if `caller` is permitted to invoke `capability` */
   checkPermission?(caller: string, capability: string): Promise<boolean>;
+
+  // ─── Mesh protocols (heartbeat / capability exchange / gossip) ────────────
+
+  /**
+   * Respond to a heartbeat ping from another agent.
+   * Default: returns status='healthy' with capability count.
+   */
+  handleHeartbeat?(req: HeartbeatRequest): Promise<HeartbeatResponse>;
+
+  /**
+   * Respond to a direct capability query from another agent.
+   * Default: returns capabilities list and full ANR.
+   */
+  handleCapabilityExchange?(req: CapabilityExchangeRequest): Promise<CapabilityExchangeResponse>;
+
+  /**
+   * Process an incoming gossip message.
+   * Default: no-op. Override to react to announce/revoke/query messages.
+   */
+  handleGossip?(msg: GossipMessage): Promise<void>;
 
   // ─── ANR / Identity exposure ──────────────────────────────────────────────
   /**
