@@ -233,4 +233,4 @@ const agent = withX402Payment(new MyAgent(), {
 
 ## License
 
-MIT
+Apache 2.0 — see [LICENSE](LICENSE)

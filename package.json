@@ -66,7 +66,7 @@
     "url": "https://github.com/ch4r10t33r/sentrix/issues"
   },
   "homepage": "https://github.com/ch4r10t33r/sentrix#readme",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
   }
