@@ -4,6 +4,12 @@ All notable changes to `sentrix-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0](https://github.com/ch4r10t33r/sentrix/compare/v1.5.0...v1.6.0) (2026-03-25)
+
+### Features
+
+* **mcp:** two-way MCP bridge — MCPPlugin + serve_as_mcp ([f65d1f7](https://github.com/ch4r10t33r/sentrix/commit/f65d1f75584b445f60d9bec20b14c43d2a00744e))
+
 ## [1.5.0](https://github.com/ch4r10t33r/sentrix/compare/v1.4.0...v1.5.0) (2026-03-25)
 
 ### Features
