@@ -22,13 +22,14 @@ Sentrix is **not a platform** — it is a protocol layer others build on.
 
 ## Architecture
 
-```
-L4  Execution       LangGraph · Google ADK · CrewAI · Agno · LlamaIndex · smolagents
-────────────────────────────────────────────────────────────────────────────────────
-L3  Interaction     AgentRequest / AgentResponse  (AMP-2)
-L2  Discovery       Local · HTTP · libp2p / Kademlia DHT  (AMP-1)
-L1  Identity        DID (W3C) by default  ·  ERC-8004 on-chain (optional)
-```
+| Layer | Role | Technologies |
+|---|---|---|
+| **L4** Execution | Agent frameworks | LangGraph · Google ADK · CrewAI · Agno · LlamaIndex · smolagents |
+| **L3** Interaction | Request / response | `AgentRequest` / `AgentResponse` · AMP-2 |
+| **L2** Discovery | Capability lookup | Local · HTTP · libp2p + Kademlia DHT · AMP-1 |
+| **L1** Identity | DID + trust | `did:key` W3C (default) · ERC-8004 on-chain (optional) |
+
+Sentrix operates primarily at **L2** and **L3**, bridging L1 identity to L4 framework execution.
 
 ---
 
