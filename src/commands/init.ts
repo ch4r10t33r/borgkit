@@ -1,6 +1,5 @@
 import path from 'path';
 import fs from 'fs-extra';
-import ora from 'ora';
 import { copyTemplate, writeConfig } from '../utils/generator';
 import { logger } from '../utils/logger';
 
@@ -31,6 +30,7 @@ export async function initCommand(
 
   logger.title(`Sentrix — Initialising project "${projectName}" [${lang}]`);
 
+  const { default: ora } = await import('ora');
   const spinner = ora('Scaffolding project structure...').start();
 
   try {
