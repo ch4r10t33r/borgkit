@@ -419,6 +419,30 @@ class WrappedAgent(IAgent, Generic[TAgent]):
         except Exception:
             return None
 
+    async def serve(self, host: str = "0.0.0.0", port: int = 8080) -> None:
+        """
+        Start the built-in HTTP server for this agent and block until shutdown.
+
+        This is a convenience wrapper around ``server.serve()``.  It starts the
+        HTTP transport, registers with discovery (printing the startup banner),
+        and unregisters cleanly on SIGINT / SIGTERM.
+
+        Args:
+            host: Bind address.  Defaults to "0.0.0.0" (all interfaces).
+            port: TCP port.  Overridden by SENTRIX_PORT env var if set.
+
+        Example::
+
+            import asyncio
+            from plugins.google_adk_plugin import GoogleADKPlugin
+
+            plugin = GoogleADKPlugin(config)
+            agent  = plugin.wrap(my_adk_agent)
+            asyncio.run(agent.serve(port=8080))
+        """
+        from server import serve as _serve
+        await _serve(self, host=host, port=port)
+
 
 # ── startup banner ─────────────────────────────────────────────────────────────
 

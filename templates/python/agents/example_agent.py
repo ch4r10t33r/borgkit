@@ -59,17 +59,21 @@ class ExampleAgent(IAgent):
         await LocalDiscovery.get_instance().unregister(self.agent_id)
 
 
-# ── Dev runner ────────────────────────────────────────────────────────────────
+# ── Entry point ───────────────────────────────────────────────────────────────
+#
+# Run directly:
+#   python agents/example_agent.py
+#   SENTRIX_PORT=9090 python agents/example_agent.py
+#
+# Or via sentrix-cli:
+#   sentrix run ExampleAgent --port 8080
+#
 if __name__ == "__main__":
     import asyncio
+    import os
+    from server import serve
 
-    async def main():
-        agent = ExampleAgent()
-        await agent.register_discovery()
+    port = int(os.environ.get("SENTRIX_PORT", "8080"))
 
-        # Smoke test
-        req = AgentRequest(request_id="test-001", from_id="0xCaller", capability="ping", payload={})
-        resp = await agent.handle_request(req)
-        print("Response:", resp.to_dict())
-
-    asyncio.run(main())
+    agent = ExampleAgent()
+    asyncio.run(serve(agent, port=port))

@@ -238,6 +238,28 @@ export class WrappedAgent<TAgent, TNativeInput, TNativeOutput> implements IAgent
       return null;
     }
   }
+
+  /**
+   * Start the built-in HTTP server for this agent and block until shutdown.
+   *
+   * Convenience wrapper around `serve()` from `../server`.  Starts listening,
+   * registers with discovery (printing the startup banner), and unregisters
+   * cleanly on SIGINT / SIGTERM.
+   *
+   * @param options.host - Bind address. Default: '0.0.0.0'
+   * @param options.port - TCP port. Overridden by SENTRIX_PORT env var. Default: 8080
+   *
+   * @example
+   * ```ts
+   * const plugin = new GoogleADKPlugin(config);
+   * const agent  = plugin.wrap(myAgent);
+   * await agent.serve({ port: 8080 });
+   * ```
+   */
+  async serve(options: { host?: string; port?: number } = {}): Promise<void> {
+    const { serve: _serve } = await import('../server');
+    await _serve(this, options);
+  }
 }
 
 // ── startup banner ─────────────────────────────────────────────────────────────

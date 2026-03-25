@@ -107,3 +107,21 @@ export class ExampleAgent implements IAgent {
     return true; // open by default for development
   }
 }
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+//
+// Run directly:
+//   npx ts-node agents/ExampleAgent.ts
+//   SENTRIX_PORT=9090 npx ts-node agents/ExampleAgent.ts
+//
+// Or via sentrix-cli:
+//   sentrix run ExampleAgent --port 8080
+//
+if (require.main === module) {
+  (async () => {
+    const { serve } = await import('../server');
+    const port = parseInt(process.env.SENTRIX_PORT ?? '8080', 10);
+    const agent = new ExampleAgent();
+    await serve(agent, { port });
+  })();
+}

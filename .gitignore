@@ -30,3 +30,6 @@ zig-out/
 .idea/
 .vscode/
 *.swp
+
+# Internal planning docs (not for public repo)
+docs/roadmap.md
