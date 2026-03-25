@@ -1,0 +1,13 @@
+# ── Core (always needed) ──────────────────────────────────────────────────────
+# No extra pip installs needed for demo mode — uses only stdlib + templates/python
+
+# ── Live mode: Google ADK (ResearchAgent) ─────────────────────────────────────
+# Uncomment when GOOGLE_API_KEY is set:
+# google-adk>=1.0.0
+# google-generativeai>=0.8.0
+
+# ── Live mode: CrewAI (WriterAgent) ───────────────────────────────────────────
+# Uncomment when OPENAI_API_KEY is set:
+# crewai>=0.80.0
+# crewai-tools>=0.14.0
+# openai>=1.0.0
