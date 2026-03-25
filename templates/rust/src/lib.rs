@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod client;
 pub mod discovery;
 pub mod discovery_http;
 pub mod discovery_libp2p;

@@ -65,3 +65,22 @@ class IAgentDiscovery(ABC):
     async def heartbeat(self, agent_id: str) -> None:
         """Emit a keep-alive so the registry knows the agent is alive."""
         ...
+
+    async def find(self, capability: str) -> Optional[DiscoveryEntry]:
+        """
+        Return the best healthy agent for `capability`.
+        Default implementation calls query() and picks the first healthy result.
+        """
+        entries = await self.query(capability)
+        healthy = [e for e in entries if e.health.status == "healthy"]
+        return healthy[0] if healthy else (entries[0] if entries else None)
+
+    async def find_by_id(self, agent_id: str) -> Optional[DiscoveryEntry]:
+        """
+        Look up an agent by exact agent_id.
+        Default implementation calls list_all() and filters.
+        """
+        for entry in await self.list_all():
+            if entry.agent_id == agent_id:
+                return entry
+        return None

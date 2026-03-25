@@ -33,6 +33,18 @@ export interface IAgentDiscovery {
    * Emit a heartbeat so the registry knows the agent is alive.
    */
   heartbeat(agentId: string): Promise<void>;
+
+  /**
+   * Find the best healthy agent for `capability`.
+   * Convenience method — implementations should delegate to `query()`.
+   */
+  find?(capability: string): Promise<DiscoveryEntry | null>;
+
+  /**
+   * Look up an agent by exact agentId.
+   * Convenience method — implementations should delegate to `listAll()`.
+   */
+  findById?(agentId: string): Promise<DiscoveryEntry | null>;
 }
 
 export interface DiscoveryEntry {
