@@ -11,18 +11,38 @@ See identity.provider.LocalKeystoreIdentity for the default no-wallet option.
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import List, Optional
 from .agent_request import AgentRequest
 from .agent_response import AgentResponse
 
 
+@dataclass
+class ResourceRequirements:
+    min_memory_mb:  Optional[int]   = None
+    min_cpu_cores:  Optional[float] = None
+    storage_gb:     Optional[float] = None
+
+
+@dataclass
+class AgentMetadata:
+    name:                  str
+    version:               str
+    description:           Optional[str]                  = None
+    author:                Optional[str]                  = None
+    license:               Optional[str]                  = None
+    repository:            Optional[str]                  = None
+    tags:                  List[str]                      = field(default_factory=list)
+    resource_requirements: Optional[ResourceRequirements] = None
+
+
 class IAgent(ABC):
     # ── Identity ───────────────────────────────────────────────────────────
-    agent_id: str                    # e.g. "sentrix://agent/0xABC..."
-    owner: str     = "anonymous"     # Wallet address or arbitrary identifier.
-                                     # Required for ERC-8004; optional otherwise.
-    metadata_uri: Optional[str] = None
-    metadata: Optional[dict]    = None
+    agent_id: str                            # e.g. "sentrix://agent/0xABC..."
+    owner: str              = "anonymous"    # Wallet address or arbitrary identifier.
+                                             # Required for ERC-8004; optional otherwise.
+    metadata_uri: Optional[str]          = None
+    metadata:     Optional[AgentMetadata] = None
 
     # ── Capabilities ───────────────────────────────────────────────────────
     @abstractmethod

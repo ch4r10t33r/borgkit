@@ -41,7 +41,7 @@ interface IAgent {
 | Field | Required | Description |
 |---|---|---|
 | `agentId` | ✅ | Unique URI identifying this agent on the mesh |
-| `owner` | ✅ | The wallet or contract that controls this agent |
+| `owner` | optional | Wallet address or arbitrary identifier. Defaults to `"anonymous"`. Required only for ERC-8004 on-chain registration. |
 | `getCapabilities()` | ✅ | Returns the list of capability names callers can invoke |
 | `handleRequest()` | ✅ | The main dispatch method — all calls arrive here |
 | `preProcess()` | optional | Hook for auth, rate-limiting, logging before dispatch |
@@ -53,6 +53,7 @@ interface IAgent {
 ### AgentMetadata
 
 ```typescript
+// TypeScript
 interface AgentMetadata {
   name:        string;
   version:     string;
@@ -67,6 +68,26 @@ interface AgentMetadata {
     storageGb?:    number;
   };
 }
+```
+
+```python
+# Python
+@dataclass
+class AgentMetadata:
+    name:                  str
+    version:               str
+    description:           Optional[str]                  = None
+    author:                Optional[str]                  = None
+    license:               Optional[str]                  = None
+    repository:            Optional[str]                  = None
+    tags:                  List[str]                      = field(default_factory=list)
+    resource_requirements: Optional[ResourceRequirements] = None
+
+@dataclass
+class ResourceRequirements:
+    min_memory_mb:  Optional[int]   = None
+    min_cpu_cores:  Optional[float] = None
+    storage_gb:     Optional[float] = None
 ```
 
 ---
@@ -120,15 +141,25 @@ The standard envelope returned by every capability invocation.
 
 ```typescript
 interface AgentResponse {
-  requestId:     string;                   // echoed from AgentRequest
-  status:        'success' | 'error';
-  result?:       Record<string, unknown>;  // capability-specific output
-  errorMessage?: string;                   // only when status === 'error'
-  proof?:        string;                   // optional ZK proof / attestation
-  signature?:    string;                   // agent's EIP-712 signature
-  timestamp?:    number;                   // Unix ms
+  requestId:            string;                    // echoed from AgentRequest
+  status:               'success' | 'error' | 'payment_required';
+  result?:              Record<string, unknown>;   // capability-specific output
+  errorMessage?:        string;                    // when status === 'error' or 'payment_required'
+  proof?:               string;                    // optional ZK proof / attestation
+  signature?:           string;                    // agent's EIP-712 signature
+  timestamp?:           number;                    // Unix ms
+  // x402 fields — present only when status === 'payment_required'
+  paymentRequirements?: PaymentRequirement[];
 }
 ```
+
+### Status values
+
+| Value | Meaning |
+|---|---|
+| `success` | Capability ran successfully; `result` contains the output |
+| `error` | Capability failed; `errorMessage` describes why |
+| `payment_required` | Caller must attach an x402 payment proof and retry; `paymentRequirements` lists what is accepted |
 
 ### Constructing responses (Python convenience)
 
@@ -172,7 +203,7 @@ interface DiscoveryEntry {
   owner:         string;
   capabilities:  string[];
   network: {
-    protocol:    'http' | 'websocket' | 'grpc' | 'tcp';
+    protocol:    'http' | 'websocket' | 'grpc' | 'tcp' | 'libp2p';
     host:        string;
     port:        number;
     tls:         boolean;

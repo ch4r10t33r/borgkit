@@ -41,7 +41,7 @@ export interface DiscoveryEntry {
   owner: string;
   capabilities: string[];
   network: {
-    protocol: 'http' | 'websocket' | 'grpc' | 'tcp';
+    protocol: 'http' | 'websocket' | 'grpc' | 'tcp' | 'libp2p';
     host: string;
     port: number;
     tls: boolean;
