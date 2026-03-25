@@ -25,7 +25,9 @@
     "multiformats":              "^13.1.0",
     "uint8arrays":               "^5.1.0",
     "@noble/curves":             "^1.4.0",
-    "@noble/hashes":             "^1.4.0"
+    "@noble/hashes":             "^1.4.0",
+
+    "@modelcontextprotocol/sdk": "^1.10.0"
   },
   "devDependencies": {
     "@types/express":  "^4.17.21",
