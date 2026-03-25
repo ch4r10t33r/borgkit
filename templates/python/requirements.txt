@@ -9,3 +9,8 @@ web3>=6.15.0
 anyio>=4.3.0
 # coincurve is already used in anr.py
 coincurve>=13.0.0
+
+# MCP bridge (optional — only needed if using MCPPlugin or serve_as_mcp)
+# Wraps any MCP server as a Sentrix agent, or exposes a Sentrix agent as MCP.
+# Supports stdio, SSE, and Streamable HTTP transports.
+mcp>=1.0.0
