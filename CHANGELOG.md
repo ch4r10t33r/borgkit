@@ -4,6 +4,12 @@ All notable changes to `sentrix-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0](https://github.com/ch4r10t33r/sentrix/compare/v1.15.3...v1.16.0) (2026-03-26)
+
+### Features
+
+* **plugins:** add LangGraph, Google ADK, and CrewAI plugins for TypeScript, Rust, and Zig ([5e54692](https://github.com/ch4r10t33r/sentrix/commit/5e5469292da8eb2097c6179c0e838d87f522ca8d))
+
 ## [1.15.3](https://github.com/ch4r10t33r/sentrix/compare/v1.15.2...v1.15.3) (2026-03-26)
 
 ### Bug Fixes
