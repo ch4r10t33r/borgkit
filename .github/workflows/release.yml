@@ -11,6 +11,7 @@ permissions:
   issues: write         # comment on issues when included in a release
   pull-requests: write  # comment on PRs when included in a release
   id-token: write       # OIDC provenance for npm publish
+  actions: write        # dispatch release-cli.yml after semantic-release
 
 jobs:
   release:
@@ -47,13 +48,22 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npx semantic-release
-          # Capture whether a new release was actually made
-          VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # Check if semantic-release pushed a new tag (i.e. a release was made)
+          git fetch --tags
+          LATEST_TAG=$(git tag --sort=-version:refname | head -1)
+          LATEST_TAG_COMMIT=$(git rev-list -n1 "$LATEST_TAG" 2>/dev/null || echo "")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$LATEST_TAG_COMMIT" = "$HEAD_COMMIT" ] || git log --oneline -3 | grep -q "chore(release)"; then
+            VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+            echo "released=true"  >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "version="       >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Trigger Release CLI (build & publish binaries)
-        # Only fire if semantic-release actually cut a new version
-        if: steps.semantic.outputs.version != ''
+        if: steps.semantic.outputs.released == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
