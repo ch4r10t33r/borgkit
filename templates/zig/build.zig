@@ -133,6 +133,25 @@ pub fn build(b: *std.Build) void {
     const plugins_step = b.step("plugins", "Compile the Sentrix plugins modules");
     plugins_step.dependOn(&b.addInstallArtifact(plugins_lib, .{}).step);
 
+    // ── example programs: did:key + gossip fan-out ────────────────────────────
+
+    const ex_did = b.addExecutable(.{
+        .name             = "example-did-key",
+        .root_source_file = b.path("examples/did_key_identity.zig"),
+        .target           = target,
+        .optimize         = optimize,
+    });
+    const ex_gossip = b.addExecutable(.{
+        .name             = "example-gossip-fanout",
+        .root_source_file = b.path("examples/gossip_fanout_discovery.zig"),
+        .target           = target,
+        .optimize         = optimize,
+    });
+
+    const examples_step = b.step("examples", "Build did:key + gossip fan-out demos");
+    examples_step.dependOn(&b.addInstallArtifact(ex_did, .{}).step);
+    examples_step.dependOn(&b.addInstallArtifact(ex_gossip, .{}).step);
+
     // ── unit tests ────────────────────────────────────────────────────────────
 
     const unit_tests = b.addTest(.{

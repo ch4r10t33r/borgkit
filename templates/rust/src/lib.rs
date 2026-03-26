@@ -1,8 +1,10 @@
 pub mod agent;
 pub mod client;
+pub mod did_key_example;
 pub mod discovery;
 pub mod discovery_http;
 pub mod discovery_libp2p;
+pub mod gossip_fanout_example;
 pub mod request;
 pub mod response;
 pub mod example_agent;

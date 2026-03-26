@@ -8,6 +8,17 @@ description = "Sentrix agent project — ERC-8004 compliant"
 name = "{{PROJECT_NAME}}"
 path = "src/main.rs"
 
+[lib]
+path = "src/lib.rs"
+
+[[example]]
+name = "did_key_identity"
+path = "examples/did_key_identity.rs"
+
+[[example]]
+name = "gossip_fanout_discovery"
+path = "examples/gossip_fanout_discovery.rs"
+
 [dependencies]
 async-trait  = "0.1"
 serde        = { version = "1",   features = ["derive"] }
@@ -21,6 +32,7 @@ reqwest      = { version = "0.12", features = ["json"] }
 urlencoding  = "2"
 sha2         = "0.10"
 base64       = "0.22"
+bs58         = "0.5"
 
 # ── ANR (Agent Network Record) ────────────────────────────────────────────────
 k256         = { version = "0.13", features = ["ecdsa"] }

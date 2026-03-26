@@ -105,6 +105,7 @@ pub fn run(args: InitArgs) -> Result<()> {
     }
 
     let agent_name = pascal_case(&args.name);
+    let project_lib = args.name.replace('-', "_");
     let lang_str = lang.template_dir();
     let prefix = format!("{}/", lang_str);
 
@@ -156,6 +157,7 @@ pub fn run(args: InitArgs) -> Result<()> {
         // Apply token replacement
         let content = raw
             .replace("{{PROJECT_NAME}}", &args.name)
+            .replace("{{PROJECT_LIB}}", &project_lib)
             .replace("{{AGENT_NAME}}", &agent_name)
             .replace("{{CAPABILITIES}}", "echo, ping");
 
