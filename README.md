@@ -68,9 +68,9 @@ Sentrix operates primarily at **L2** and **L3**, bridging L1 identity to L4 fram
 | **AgentClient (mesh protocols)** | ✅ | ✅ | ✅ | ✅ |
 | **Example agent** | ✅ | ✅ | ✅ | ✅ |
 | **Plugin system (framework adapters)** | ✅ | ✅ | ✅ | ✅ |
-| **LangGraph plugin** | ✅ | ✅ | — | — |
-| **Google ADK plugin** | ✅ | 🔜 | — | — |
-| **CrewAI plugin** | ✅ | — | — | — |
+| **LangGraph plugin** | ✅ | ✅ | ✅ | ✅ |
+| **Google ADK plugin** | ✅ | ✅ | ✅ | ✅ |
+| **CrewAI plugin** | ✅ | ✅ | ✅ | ✅ |
 | **OpenAI Agents SDK plugin** | ✅ | ✅ | — | — |
 | **Agno plugin** | ✅ | 🔜 | — | — |
 | **LlamaIndex plugin** | ✅ | 🔜 | — | — |
@@ -81,6 +81,8 @@ Sentrix operates primarily at **L2** and **L3**, bridging L1 identity to L4 fram
 | **Streaming (SSE via /invoke/stream)** | ✅ | ✅ | 🔜 | 🔜 |
 
 **Legend:** ✅ implemented · 🔜 on roadmap · — not applicable for this language
+
+**Rust / Zig — framework plugins:** LangGraph, Google ADK, and CrewAI are Python/JS frameworks with no native Rust or Zig SDKs. The Rust and Zig plugins are **HTTP bridge adapters** that call a running service endpoint (e.g. `adk web`, a LangServe app, or a FastAPI-wrapped CrewAI crew) so the agent participates in the Sentrix mesh without embedding a Python interpreter.
 
 **Zig — discovery:** `HttpDiscovery` (`discovery_http.zig`) is a REST client for the discovery service (`SENTRIX_DISCOVERY_URL`, `SENTRIX_DISCOVERY_KEY`). `Libp2pDiscovery` (`discovery_libp2p.zig`) keeps an in-memory registry and builds JSON for gossip publish / ingest; it does not run an in-process Kademlia DHT (see 🔜 above).
 
@@ -231,15 +233,88 @@ asyncio.run(agent.serve(port=6174))
 ### TypeScript
 
 ```typescript
-// LangGraph
-import { wrapLangGraph }  from './plugins/LangGraphPlugin';
-const agent = wrapLangGraph(compiledGraph, config);
+// LangGraph (in-process — wraps a compiled CompiledGraph)
+import { wrapLangGraph } from './plugins/LangGraphPlugin';
+const agent = wrapLangGraph(compiledGraph, { agentId: 'sentrix://agent/researcher', name: 'Researcher', ... });
+
+// Google ADK (in-process — wraps a BaseAgent / LlmAgent)
+import { wrapGoogleADK } from './plugins/GoogleADKPlugin';
+const agent = wrapGoogleADK(adkAgent, { agentId: 'sentrix://agent/support', name: 'Support', ... });
+
+// CrewAI (HTTP bridge — calls a running CrewAI service)
+import { wrapCrewAI } from './plugins/CrewAIPlugin';
+const agent = await wrapCrewAI({
+  agentId:    'sentrix://agent/writer',
+  name:       'WriterCrew',
+  version:    '1.0.0',
+  owner:      '0xYourWallet',
+  serviceUrl: 'http://localhost:8000',  // FastAPI-wrapped CrewAI crew
+});
 
 // OpenAI Agents SDK
 import { wrapOpenAI } from './plugins/OpenAIPlugin';
 const agent = wrapOpenAI(oaiAgent, { agentId: 'sentrix://agent/weather', name: 'WeatherBot', ... });
 
 await agent.serve({ port: 6174 });
+```
+
+### Rust
+
+```rust
+use sentrix::plugins::{
+    langgraph::{LangGraphPlugin, LangGraphService},
+    google_adk::{GoogleADKPlugin, GoogleADKService},
+    crewai::{CrewAIPlugin, CrewAIService},
+    base::PluginConfig,
+};
+
+// LangGraph — HTTP bridge to a LangServe endpoint
+let service = LangGraphService { base_url: "http://localhost:8000".into(), ..Default::default() };
+let agent = LangGraphPlugin::new().wrap(service, PluginConfig {
+    agent_id: "sentrix://agent/researcher".into(), owner: "0xYourWallet".into(), ..Default::default()
+});
+
+// Google ADK — HTTP bridge to `adk web`
+let service = GoogleADKService {
+    base_url: "http://localhost:8080".into(),
+    app_name: "my_agent".into(),
+    ..Default::default()
+};
+let agent = GoogleADKPlugin::new().wrap(service, PluginConfig { .. });
+
+// CrewAI — HTTP bridge to a FastAPI-wrapped crew
+let mut service = CrewAIService { base_url: "http://localhost:8000".into(), ..Default::default() };
+let plugin = CrewAIPlugin::new();
+plugin.fetch_capabilities(&mut service).await?;   // populate tool list from GET /capabilities
+let agent = plugin.wrap(service, PluginConfig { .. });
+```
+
+### Zig
+
+```zig
+const lg  = @import("langgraph");
+const adk = @import("google_adk");
+const ca  = @import("crewai");
+const Wrapped = @import("wrapped_agent").WrappedAgent;
+
+// LangGraph — HTTP bridge to a LangServe endpoint
+var lg_service = lg.LangGraphService{ .base_url = "http://localhost:8000" };
+var lg_plugin  = lg.LangGraphPlugin.init(allocator);
+defer lg_plugin.deinit();
+var agent = Wrapped(lg.LangGraphService, lg.LangGraphPlugin).init(
+    &lg_service, &lg_plugin, .{ .agent_id = "sentrix://agent/researcher", .owner = "0x..." }, allocator,
+);
+
+// Google ADK — HTTP bridge to `adk web`
+var adk_service = adk.GoogleADKService{ .base_url = "http://localhost:8080", .app_name = "my_agent" };
+var adk_plugin  = adk.GoogleADKPlugin.init(allocator);
+defer adk_plugin.deinit();
+
+// CrewAI — HTTP bridge; capabilities fetched from GET /capabilities
+var crew_service = ca.CrewAIService{ .base_url = "http://localhost:8000" };
+var crew_plugin  = ca.CrewAIPlugin.init(allocator);
+defer crew_plugin.deinit();
+// capabilities auto-fetched in extractCapabilities; or call fetchCapabilities() eagerly
 ```
 
 ---
@@ -682,7 +757,7 @@ python run_example.py
 | [docs/mcp.md](docs/mcp.md) | MCP bridge — wrap MCP servers, expose as MCP server |
 | [docs/discovery.md](docs/discovery.md) | Discovery adapters |
 | [docs/libp2p.md](docs/libp2p.md) | P2P networking with libp2p + QUIC |
-| [docs/plugins.md](docs/plugins.md) | Framework adapters (7 frameworks) |
+| [docs/plugins.md](docs/plugins.md) | Framework adapters — LangGraph, Google ADK, CrewAI, OpenAI, Agno, LlamaIndex, smolagents, MCP |
 | [docs/differentiation.md](docs/differentiation.md) | How Sentrix differs from other frameworks |
 
 ---
