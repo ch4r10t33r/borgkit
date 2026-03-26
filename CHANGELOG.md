@@ -4,6 +4,12 @@ All notable changes to `sentrix-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0](https://github.com/ch4r10t33r/sentrix/compare/v1.10.0...v1.11.0) (2026-03-26)
+
+### Features
+
+* implement sign_message, env-driven discovery, and permission checks ([c8c265b](https://github.com/ch4r10t33r/sentrix/commit/c8c265bf02957eda81957bbb55e4d419293e73fe))
+
 ## [1.10.0](https://github.com/ch4r10t33r/sentrix/compare/v1.9.0...v1.10.0) (2026-03-26)
 
 ### Features
