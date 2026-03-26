@@ -71,14 +71,14 @@ Sentrix operates primarily at **L2** and **L3**, bridging L1 identity to L4 fram
 | **LangGraph plugin** | ✅ | ✅ | ✅ | ✅ |
 | **Google ADK plugin** | ✅ | ✅ | ✅ | ✅ |
 | **CrewAI plugin** | ✅ | ✅ | ✅ | ✅ |
-| **OpenAI Agents SDK plugin** | ✅ | ✅ | — | — |
-| **Agno plugin** | ✅ | 🔜 | — | — |
-| **LlamaIndex plugin** | ✅ | 🔜 | — | — |
-| **smolagents plugin** | ✅ | 🔜 | — | — |
+| **OpenAI Agents SDK plugin** | ✅ | ✅ | ✅ | ✅ |
+| **Agno plugin** | ✅ | ✅ | ✅ | ✅ |
+| **LlamaIndex plugin** | ✅ | ✅ | ✅ | ✅ |
+| **smolagents plugin** | ✅ | ✅ | ✅ | ✅ |
 | **MCP bridge (wrap MCP servers)** | ✅ | ✅ | — | — |
 | **MCP bridge (expose as MCP server)** | ✅ | ✅ | — | — |
-| **x402 micropayments** | ✅ | ✅ | 🔜 | 🔜 |
-| **Streaming (SSE via /invoke/stream)** | ✅ | ✅ | 🔜 | 🔜 |
+| **x402 micropayments** | ✅ | ✅ | ✅ | ✅ |
+| **Streaming (SSE via /invoke/stream)** | ✅ | ✅ | ✅ | ✅ |
 
 **Legend:** ✅ implemented · 🔜 on roadmap · — not applicable for this language
 
@@ -192,6 +192,7 @@ When you run an agent, these endpoints are live automatically:
 | Endpoint | Method | Description |
 |---|---|---|
 | `/invoke` | `POST` | Call any capability — `{ capability, payload, from }` → `AgentResponse` |
+| `/invoke/stream` | `POST` | Same as `/invoke` but responds with `text/event-stream` SSE frames |
 | `/health` | `GET` | Heartbeat — returns health status, capability count, version |
 | `/anr` | `GET` | Full Agent Network Record (ANR) as JSON |
 | `/capabilities` | `GET` | List of capability names |
@@ -252,8 +253,17 @@ const agent = await wrapCrewAI({
 });
 
 // OpenAI Agents SDK
-import { wrapOpenAI } from './plugins/OpenAIPlugin';
+import { wrapOpenAI }     from './plugins/OpenAIPlugin';
+import { AgnoPlugin }     from './plugins/AgnoPlugin';
+import { LlamaIndexPlugin } from './plugins/LlamaIndexPlugin';
+import { SmolagentsPlugin } from './plugins/SmolagentsPlugin';
+
 const agent = wrapOpenAI(oaiAgent, { agentId: 'sentrix://agent/weather', name: 'WeatherBot', ... });
+
+// Agno, LlamaIndex, smolagents — same one-liner pattern
+const agnoAgent     = new AgnoPlugin({ agentId: 'sentrix://agent/agno', ... }).wrap(myAgnoAgent);
+const llamaAgent    = new LlamaIndexPlugin({ agentId: 'sentrix://agent/llama', ... }).wrap(myIndex);
+const smolaAgent    = new SmolagentsPlugin({ agentId: 'sentrix://agent/smol', ... }).wrap(mySmolAgent);
 
 await agent.serve({ port: 6174 });
 ```
@@ -265,6 +275,10 @@ use sentrix::plugins::{
     langgraph::{LangGraphPlugin, LangGraphService},
     google_adk::{GoogleADKPlugin, GoogleADKService},
     crewai::{CrewAIPlugin, CrewAIService},
+    openai::{OpenAIPlugin, OpenAIService},
+    agno::{AgnoPlugin, AgnoService},
+    llamaindex::{LlamaIndexPlugin, LlamaIndexService},
+    smolagents::{SmolagentsPlugin, SmolagentsService},
     base::PluginConfig,
 };
 
@@ -274,28 +288,45 @@ let agent = LangGraphPlugin::new().wrap(service, PluginConfig {
     agent_id: "sentrix://agent/researcher".into(), owner: "0xYourWallet".into(), ..Default::default()
 });
 
-// Google ADK — HTTP bridge to `adk web`
-let service = GoogleADKService {
-    base_url: "http://localhost:8080".into(),
-    app_name: "my_agent".into(),
+// OpenAI-compatible API (OpenAI, vLLM, Ollama, …)
+let service = OpenAIService {
+    base_url: "https://api.openai.com".into(),
+    model:    "gpt-4o-mini".into(),
+    api_key:  Some(std::env::var("OPENAI_API_KEY").unwrap()),
     ..Default::default()
 };
-let agent = GoogleADKPlugin::new().wrap(service, PluginConfig { .. });
+let agent = OpenAIPlugin::new().wrap(service, PluginConfig { .. });
+
+// Agno — HTTP bridge to a deployed Agno FastAPI server
+let service = AgnoService { base_url: "http://localhost:7777".into(), ..Default::default() };
+let agent = AgnoPlugin::new().wrap(service, PluginConfig { .. });
+
+// LlamaIndex — HTTP bridge to a LlamaIndex server
+let service = LlamaIndexService { base_url: "http://localhost:8080".into(), ..Default::default() };
+let agent = LlamaIndexPlugin::new().wrap(service, PluginConfig { .. });
+
+// smolagents — Gradio or custom API bridge
+let service = SmolagentsService { base_url: "http://localhost:7860".into(), ..Default::default() };
+let agent = SmolagentsPlugin::new().wrap(service, PluginConfig { .. });
 
 // CrewAI — HTTP bridge to a FastAPI-wrapped crew
 let mut service = CrewAIService { base_url: "http://localhost:8000".into(), ..Default::default() };
 let plugin = CrewAIPlugin::new();
-plugin.fetch_capabilities(&mut service).await?;   // populate tool list from GET /capabilities
+plugin.fetch_capabilities(&mut service).await?;
 let agent = plugin.wrap(service, PluginConfig { .. });
 ```
 
 ### Zig
 
 ```zig
-const lg  = @import("langgraph");
-const adk = @import("google_adk");
-const ca  = @import("crewai");
-const Wrapped = @import("wrapped_agent").WrappedAgent;
+const lg   = @import("plugins/langgraph.zig");
+const adk  = @import("plugins/google_adk.zig");
+const ca   = @import("plugins/crewai.zig");
+const oai  = @import("plugins/openai.zig");
+const agno = @import("plugins/agno.zig");
+const lli  = @import("plugins/llamaindex.zig");
+const sma  = @import("plugins/smolagents.zig");
+const Wrapped = @import("plugins/wrapped_agent.zig").WrappedAgent;
 
 // LangGraph — HTTP bridge to a LangServe endpoint
 var lg_service = lg.LangGraphService{ .base_url = "http://localhost:8000" };
@@ -305,16 +336,21 @@ var agent = Wrapped(lg.LangGraphService, lg.LangGraphPlugin).init(
     &lg_service, &lg_plugin, .{ .agent_id = "sentrix://agent/researcher", .owner = "0x..." }, allocator,
 );
 
-// Google ADK — HTTP bridge to `adk web`
-var adk_service = adk.GoogleADKService{ .base_url = "http://localhost:8080", .app_name = "my_agent" };
-var adk_plugin  = adk.GoogleADKPlugin.init(allocator);
-defer adk_plugin.deinit();
+// OpenAI-compatible API
+var oai_service = oai.OpenAIService{ .base_url = "https://api.openai.com", .api_key = "sk-..." };
+var oai_plugin  = oai.OpenAIPlugin.init(allocator);
+defer oai_plugin.deinit();
 
-// CrewAI — HTTP bridge; capabilities fetched from GET /capabilities
-var crew_service = ca.CrewAIService{ .base_url = "http://localhost:8000" };
-var crew_plugin  = ca.CrewAIPlugin.init(allocator);
-defer crew_plugin.deinit();
-// capabilities auto-fetched in extractCapabilities; or call fetchCapabilities() eagerly
+// Agno — deployed Agno server
+var agno_service = agno.AgnoService{ .base_url = "http://localhost:7777" };
+var agno_plugin  = agno.AgnoPlugin.init(allocator);
+defer agno_plugin.deinit();
+
+// LlamaIndex — deployed LlamaIndex server
+var lli_service = lli.LlamaIndexService{ .base_url = "http://localhost:8080" };
+
+// smolagents — Gradio or custom API
+var sma_service = sma.SmolagentsService{ .base_url = "http://localhost:7860" };
 ```
 
 ---
@@ -765,10 +801,9 @@ python run_example.py
 ## TODOs
 
 - [ ] More examples, tutorials and videos
-- [ ] Rust + Zig gossip discovery implementation
-- [ ] Streaming responses (SSE / WebSocket) for Rust and Zig
 - [ ] Public hosted discovery registry
 - [ ] ERC-8004 delegation (`checkPermission`) on-chain enforcement
+- [ ] True token-by-token streaming (requires agent-side `streamRequest` method)
 
 ---
 
