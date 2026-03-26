@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+'use strict';
+
+// ---------------------------------------------------------------------------
+// sentrix — JS shim for the Rust binary
+//
+// Resolves the correct platform binary from the matching optional dependency
+// (@ch4r10teer41/sentrix-cli-<os>-<arch>) and exec-spawns it, forwarding
+// all argv and stdio unchanged.
+//
+// Fallback: if SENTRIX_CLI_TS=1 is set, falls back to the legacy TypeScript
+// implementation (requires dist/ to be present — development use only).
+// ---------------------------------------------------------------------------
+
+const { execFileSync } = require('child_process');
+const path  = require('path');
+const fs    = require('fs');
+
+// ── TypeScript fallback (dev / rollback) ────────────────────────────────────
+if (process.env.SENTRIX_CLI_TS === '1') {
+  const legacy = path.join(__dirname, '..', '..', '..', 'dist', 'cli.js');
+  if (fs.existsSync(legacy)) {
+    require(legacy);
+    return;
+  }
+  console.error('[sentrix] SENTRIX_CLI_TS=1 set but dist/cli.js not found. Run: npm run build');
+  process.exit(1);
+}
+
+// ── Platform map ─────────────────────────────────────────────────────────────
+const PLATFORMS = {
+  linux:  { x64: 'linux-x64',   arm64: 'linux-arm64'  },
+  darwin: { x64: 'darwin-x64',  arm64: 'darwin-arm64' },
+  win32:  { x64: 'win32-x64'                           },
+};
+
+const suffix = (PLATFORMS[process.platform] || {})[process.arch];
+
+if (!suffix) {
+  console.error(
+    `\n  sentrix: unsupported platform: ${process.platform}/${process.arch}\n` +
+    `  Please open an issue: https://github.com/ch4r10t33r/sentrix/issues\n`
+  );
+  process.exit(1);
+}
+
+const pkgName = `@ch4r10teer41/sentrix-cli-${suffix}`;
+const binName = process.platform === 'win32' ? 'sentrix.exe' : 'sentrix';
+
+// ── Locate binary ─────────────────────────────────────────────────────────────
+let binPath;
+try {
+  const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+  binPath = path.join(path.dirname(pkgJsonPath), 'bin', binName);
+} catch {
+  console.error(
+    `\n  sentrix: native binary not found for ${process.platform}/${process.arch}.\n` +
+    `  The optional package "${pkgName}" was not installed.\n\n` +
+    `  Fix with:\n` +
+    `    npm install -g @ch4r10teer41/sentrix-cli\n\n` +
+    `  Or install the platform package directly:\n` +
+    `    npm install -g ${pkgName}\n`
+  );
+  process.exit(1);
+}
+
+if (!fs.existsSync(binPath)) {
+  console.error(`\n  sentrix: binary not found at expected path:\n    ${binPath}\n`);
+  process.exit(1);
+}
+
+// ── Exec ──────────────────────────────────────────────────────────────────────
+try {
+  execFileSync(binPath, process.argv.slice(2), { stdio: 'inherit' });
+} catch (err) {
+  process.exit(err.status != null ? err.status : 1);
+}

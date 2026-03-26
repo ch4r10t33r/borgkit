@@ -1,0 +1,195 @@
+name: Release CLI
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write   # create GitHub releases
+  id-token: write   # npm provenance
+
+jobs:
+  # ── Build one binary per target ─────────────────────────────────────────────
+  build:
+    name: Build ${{ matrix.npm_pkg }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target:    x86_64-unknown-linux-gnu
+            os:        ubuntu-latest
+            use_cross: true
+            npm_pkg:   sentrix-cli-linux-x64
+            bin_name:  sentrix
+
+          - target:    aarch64-unknown-linux-gnu
+            os:        ubuntu-latest
+            use_cross: true
+            npm_pkg:   sentrix-cli-linux-arm64
+            bin_name:  sentrix
+
+          - target:    x86_64-apple-darwin
+            os:        macos-13
+            use_cross: false
+            npm_pkg:   sentrix-cli-darwin-x64
+            bin_name:  sentrix
+
+          - target:    aarch64-apple-darwin
+            os:        macos-latest
+            use_cross: false
+            npm_pkg:   sentrix-cli-darwin-arm64
+            bin_name:  sentrix
+
+          - target:    x86_64-pc-windows-msvc
+            os:        windows-latest
+            use_cross: false
+            npm_pkg:   sentrix-cli-win32-x64
+            bin_name:  sentrix.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }} --package sentrix-cli
+
+      - name: Build (native)
+        if: "!matrix.use_cross"
+        run: cargo build --release --target ${{ matrix.target }} --package sentrix-cli
+
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.bin_name }}
+
+      - name: Copy binary into npm package
+        shell: bash
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.bin_name }} \
+             npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }}
+          chmod +x npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }} 2>/dev/null || true
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.npm_pkg }}
+          path: npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }}
+          if-no-files-found: error
+
+  # ── Publish GitHub release + all npm packages ───────────────────────────────
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Rust (for cargo metadata)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Extract version from Cargo workspace
+        id: version
+        run: |
+          VERSION=$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[] | select(.name=="sentrix-cli") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Place binaries into npm packages
+        shell: bash
+        run: |
+          declare -A MAP=(
+            [binary-sentrix-cli-linux-x64]=sentrix-cli-linux-x64
+            [binary-sentrix-cli-linux-arm64]=sentrix-cli-linux-arm64
+            [binary-sentrix-cli-darwin-x64]=sentrix-cli-darwin-x64
+            [binary-sentrix-cli-darwin-arm64]=sentrix-cli-darwin-arm64
+            [binary-sentrix-cli-win32-x64]=sentrix-cli-win32-x64
+          )
+          for artifact in "${!MAP[@]}"; do
+            pkg="${MAP[$artifact]}"
+            src="artifacts/$artifact"
+            dst="npm/$pkg/bin"
+            mkdir -p "$dst"
+            cp "$src"/* "$dst/"
+            chmod +x "$dst"/* 2>/dev/null || true
+          done
+
+      - name: Write version into all package.json files
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          for pkg in npm/sentrix-cli npm/sentrix-cli-linux-x64 npm/sentrix-cli-linux-arm64 \
+                     npm/sentrix-cli-darwin-x64 npm/sentrix-cli-darwin-arm64 npm/sentrix-cli-win32-x64; do
+            jq --arg v "$VERSION" '.version = $v' "$pkg/package.json" > /tmp/pkg.json
+            mv /tmp/pkg.json "$pkg/package.json"
+          done
+          # Update optionalDependency versions in wrapper
+          jq --arg v "$VERSION" \
+            '.optionalDependencies |= with_entries(.value = $v)' \
+            npm/sentrix-cli/package.json > /tmp/pkg.json
+          mv /tmp/pkg.json npm/sentrix-cli/package.json
+
+      - name: Copy README into wrapper package
+        run: cp README.md npm/sentrix-cli/README.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --generate-notes \
+            npm/sentrix-cli-linux-x64/bin/sentrix \
+            npm/sentrix-cli-linux-arm64/bin/sentrix \
+            npm/sentrix-cli-darwin-x64/bin/sentrix \
+            npm/sentrix-cli-darwin-arm64/bin/sentrix \
+            npm/sentrix-cli-win32-x64/bin/sentrix.exe
+
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for pkg in sentrix-cli-linux-x64 sentrix-cli-linux-arm64 \
+                     sentrix-cli-darwin-x64 sentrix-cli-darwin-arm64 \
+                     sentrix-cli-win32-x64; do
+            cd npm/$pkg
+            npm publish --access public
+            cd ../..
+          done
+
+      - name: Publish wrapper package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd npm/sentrix-cli
+          npm publish --access public

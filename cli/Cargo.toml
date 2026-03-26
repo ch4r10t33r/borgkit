@@ -1,0 +1,28 @@
+[package]
+name        = "sentrix-cli"
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+description = "The Sentrix CLI — scaffold, run, discover and inspect P2P AI agents"
+
+[[bin]]
+name = "sentrix"
+path = "src/main.rs"
+
+[dependencies]
+clap          = { version = "4",    features = ["derive", "cargo", "wrap_help"] }
+rust-embed    = { version = "8",    features = ["debug-embed"] }
+owo-colors    = "4"
+indicatif     = "0.17"
+serde.workspace   = true
+serde_json.workspace = true
+anyhow.workspace  = true
+reqwest       = { version = "0.12", features = ["blocking", "json"] }
+base64        = "0.22"
+toml          = "0.8"
+walkdir       = "2"
+
+[build-dependencies]
+chrono = "0.4"
