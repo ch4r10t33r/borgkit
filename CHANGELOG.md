@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/ch4r10t33r/sentrix/compare/v1.14.1...v1.14.2) (2026-03-26)
+
+
+### Bug Fixes
+
+* install.sh falls back to ~/.local/bin when piped without TTY ([db1ebb9](https://github.com/ch4r10t33r/sentrix/commit/db1ebb95d7b5958a21a670d902439d8f3d4cd03a))
+
 ## [1.14.1](https://github.com/ch4r10t33r/sentrix/compare/v1.14.0...v1.14.1) (2026-03-26)
 
 
