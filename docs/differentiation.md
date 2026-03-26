@@ -177,13 +177,6 @@ SentriX is the **internet protocol layer** that connects them.
 | **Language SDKs** | Python, Go, JS, Java, .NET | Python, TypeScript (Rust CLI in progress) |
 | **Governance** | Google / Linux Foundation | Independent |
 
-### Where A2A is stronger
-
-- **Broader language coverage** — Go, Java, .NET are enterprise staples Sentrix doesn't have yet
-- **Formal task model** — long-running tasks with explicit state transitions are well-specified
-- **Enterprise auth story** — auth is being designed into Agent Cards from the start
-- **Institutional weight** — Google + Linux Foundation means broader framework integrations over time
-
 ### Where Sentrix is structurally different
 
 **1. P2P vs. client-server topology**
@@ -213,13 +206,3 @@ one line, with capabilities extracted automatically from the framework's own met
 A2A has deferred payments to a future roadmap. Sentrix has x402 gating built into every `POST /invoke`
 from day one — capabilities become billable services without additional infrastructure.
 
-### Summary positioning
-
-| | A2A | Sentrix |
-|---|---|---|
-| **Mental model** | "HTTP for agents" | "P2P mesh for agents" |
-| **Ideal for** | Enterprise, stable infra, known topology | Dynamic, decentralised, monetised agent networks |
-
-The sharpest differentiation Sentrix holds that A2A cannot easily adopt: **gossip discovery +
-x402 payments + the plugin wrapping pattern**. Together these define a different category — not
-"agent communication protocol" but **"agent economy infrastructure"**.
