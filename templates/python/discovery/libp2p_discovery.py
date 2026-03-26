@@ -308,6 +308,8 @@ def _dict_to_entry(d: dict) -> DiscoveryEntry:
             host=net.get('host', ''),
             port=net.get('port', 0),
             tls=net.get('tls', False),
+            peer_id=net.get('peerId', ''),
+            multiaddr=net.get('multiaddr', ''),
         ),
         health=HealthStatus(
             status=hlt.get('status', 'unknown'),

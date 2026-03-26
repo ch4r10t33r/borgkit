@@ -122,6 +122,7 @@ class DiscoveryFactory:
         http_base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         libp2p_config=None,
+        onchain_config: Optional[dict] = None,
     ) -> IAgentDiscovery:
         from discovery.local_discovery import LocalDiscovery
 
@@ -146,7 +147,14 @@ class DiscoveryFactory:
             return await Libp2pDiscovery.start(cfg)
 
         if t == 'onchain':
-            raise NotImplementedError('OnChainDiscovery not yet implemented')
+            from discovery.onchain_discovery import OnChainDiscovery, OnChainDiscoveryConfig
+            cfg = OnChainDiscoveryConfig(
+                rpc_url          = onchain_config.get('rpcUrl', '') if onchain_config else os.environ.get('SENTRIX_RPC_URL', ''),
+                contract_address = onchain_config.get('contractAddress', '') if onchain_config else os.environ.get('SENTRIX_CONTRACT_ADDRESS', ''),
+                private_key      = onchain_config.get('privateKey', '') if onchain_config else os.environ.get('SENTRIX_PRIVATE_KEY', ''),
+                chain_id         = onchain_config.get('chainId', 8453) if onchain_config else int(os.environ.get('SENTRIX_CHAIN_ID', '8453')),
+            )
+            return OnChainDiscovery(cfg)
 
         return LocalDiscovery.get_instance()
 

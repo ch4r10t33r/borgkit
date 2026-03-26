@@ -149,12 +149,37 @@ fn apply_staleness(last_heartbeat: &str, current_status: &str) -> String {
     current_status.to_string()
 }
 
-fn encode_envelope(entry: &DiscoveryEntry, seq: u64) -> Vec<u8> {
+fn encode_envelope(entry: &DiscoveryEntry, seq: u64, signing_key: Option<&[u8; 32]>) -> Vec<u8> {
+    // Build unsigned envelope first so we can sign its serialised bytes.
+    let unsigned = DhtEnvelope {
+        v:     1,
+        seq,
+        entry: StoredEntry::from(entry),
+        sig:   String::new(),
+    };
+
+    let sig_str = if let Some(key) = signing_key {
+        // Serialise the unsigned form, hash with SHA-256, sign with k256.
+        let payload = serde_json::to_vec(&unsigned).unwrap_or_default();
+        let digest   = Sha256::digest(&payload);
+
+        let ga = k256::elliptic_curve::generic_array::GenericArray::from_slice(key);
+        if let Ok(sk) = k256::ecdsa::SigningKey::from_bytes(ga) {
+            use k256::ecdsa::signature::Signer;
+            let sig: k256::ecdsa::Signature = sk.sign(&digest);
+            base64::engine::general_purpose::STANDARD.encode(sig.to_bytes())
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
     let envelope = DhtEnvelope {
         v:     1,
         seq,
         entry: StoredEntry::from(entry),
-        sig:   String::new(), // TODO: sign with k256 using ANR key
+        sig:   sig_str,
     };
     serde_json::to_vec(&envelope).unwrap_or_default()
 }
@@ -335,7 +360,7 @@ impl Libp2pDiscovery {
                                     state.local_entries.get(&entry.agent_id)
                                         .map(|(_, s)| *s + 1).unwrap_or(1)
                                 };
-                                let encoded  = encode_envelope(&entry, seq);
+                                let encoded  = encode_envelope(&entry, seq, Some(&cfg.private_key_bytes));
                                 let val_key  = anr_dht_key(&entry.agent_id);
                                 let pid_key  = pid_dht_key(&local_id);
                                 let agent_id_bytes = entry.agent_id.as_bytes().to_vec();
@@ -392,7 +417,7 @@ impl Libp2pDiscovery {
                                     entry.health.last_heartbeat =
                                         chrono::Utc::now().to_rfc3339();
 
-                                    let encoded = encode_envelope(&entry, new_seq);
+                                    let encoded = encode_envelope(&entry, new_seq, Some(&cfg.private_key_bytes));
                                     let val_key = anr_dht_key(&entry.agent_id);
                                     let _ = swarm.behaviour_mut().kademlia.put_record(
                                         kad::Record::new(val_key, encoded),
@@ -446,7 +471,7 @@ impl Libp2pDiscovery {
     async fn handle_kad_event(
         event: kad::Event,
         state: &Arc<RwLock<SharedState>>,
-        _swarm: &mut Swarm<SentrixBehaviour>,
+        swarm: &mut Swarm<SentrixBehaviour>,
     ) {
         use kad::Event::*;
         match event {
@@ -454,13 +479,25 @@ impl Libp2pDiscovery {
                 use kad::GetProvidersOk;
                 match res {
                     GetProvidersOk::FoundProviders { providers, .. } => {
-                        // TODO: for each provider, issue a GET for their DiscoveryEntry
-                        // and accumulate results.  For now, store provider PeerIds.
-                        let mut st = state.write().await;
-                        if let Some((cap, _)) = st.pending_queries.get(&id) {
-                            let cap = cap.clone();
-                            st.query_results.entry(cap).or_default();
-                            // providers: BTreeSet<PeerId> — would need to resolve via GET
+                        // Collect (cap, peer_ids) while holding the lock, then
+                        // drop the lock before calling into swarm.
+                        let cap_opt = {
+                            let st = state.read().await;
+                            st.pending_queries.get(&id).map(|(c, _)| c.clone())
+                        };
+                        if let Some(cap) = cap_opt {
+                            // Ensure the results bucket exists.
+                            state.write().await.query_results.entry(cap.clone()).or_default();
+
+                            // For each provider, issue a DHT GET for their
+                            // per-peer record (/sentrix/pid/<peer_id>).
+                            for pid in providers {
+                                let key = pid_dht_key(&pid);
+                                let get_qid = swarm.behaviour_mut().kademlia.get_record(key);
+                                // Track this GET so the GetRecord handler can
+                                // associate the result with the right capability.
+                                state.write().await.pending_gets.insert(get_qid, cap.clone());
+                            }
                         }
                     }
                     GetProvidersOk::FinishedWithNoAdditionalRecord { .. } => {

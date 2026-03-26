@@ -14,6 +14,7 @@
 import { IAgentDiscovery } from '../interfaces/IAgentDiscovery';
 import { LocalDiscovery }  from './LocalDiscovery';
 import { HttpDiscovery }   from './HttpDiscovery';
+import type { OnChainDiscoveryConfig } from './OnChainDiscovery';
 
 export type DiscoveryType = 'local' | 'http' | 'libp2p' | 'onchain';
 
@@ -27,6 +28,9 @@ export interface DiscoveryConfig {
     timeoutMs?: number;
     heartbeatIntervalMs?: number;
   };
+
+  /** Required when type === 'onchain' */
+  onchain?: OnChainDiscoveryConfig;
 
   /**
    * Required when type === 'libp2p'.
@@ -84,8 +88,10 @@ export class DiscoveryFactory {
         return Libp2pDiscovery.create(config.libp2p ?? {});
       }
 
-      case 'onchain':
-        throw new Error('[DiscoveryFactory] OnChainDiscovery not yet implemented — contribute at github.com/ch4r10t33r/sentrix');
+      case 'onchain': {
+        const { OnChainDiscovery } = await import('./OnChainDiscovery');
+        return new OnChainDiscovery(config.onchain ?? {});
+      }
 
       case 'local':
       default:
