@@ -105,9 +105,10 @@ jobs:
       - name: Copy binary into npm package
         shell: bash
         run: |
-          cp target/${{ matrix.target }}/release/${{ matrix.bin_name }} \
-             npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }}
-          chmod +x npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }} 2>/dev/null || true
+          mkdir -p "npm/${{ matrix.npm_pkg }}/bin"
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" \
+            "npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }}"
+          chmod +x "npm/${{ matrix.npm_pkg }}/bin/${{ matrix.bin_name }}" 2>/dev/null || true
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
