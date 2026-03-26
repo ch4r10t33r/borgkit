@@ -41,9 +41,17 @@ chmod +x "/tmp/${BIN}"
 # ── Install ──────────────────────────────────────────────────────────────────
 if [ -w "$INSTALL_DIR" ]; then
     mv "/tmp/${BIN}" "${INSTALL_DIR}/${BIN}"
-else
+elif command -v sudo >/dev/null 2>&1 && [ -t 0 ]; then
+    # Interactive terminal — sudo is fine
     printf "sudo required to write to %s — enter password if prompted\n" "$INSTALL_DIR"
     sudo mv "/tmp/${BIN}" "${INSTALL_DIR}/${BIN}"
+else
+    # Non-interactive (piped shell) or no sudo — fall back to ~/bin
+    INSTALL_DIR="$HOME/.local/bin"
+    mkdir -p "$INSTALL_DIR"
+    mv "/tmp/${BIN}" "${INSTALL_DIR}/${BIN}"
+    printf "\nInstalled to %s (not on PATH via sudo — add it to your PATH):\n" "$INSTALL_DIR"
+    printf '  echo '"'"'export PATH="$HOME/.local/bin:$PATH"'"'"' >> ~/.zshrc && source ~/.zshrc\n'
 fi
 
 echo ""
