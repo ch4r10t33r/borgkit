@@ -73,6 +73,32 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // ── framework bridge plugin modules ───────────────────────────────────────
+
+    const langgraph_mod = b.addModule("langgraph", .{
+        .root_source_file = b.path("src/plugins/langgraph.zig"),
+        .imports = &.{
+            .{ .name = "types",   .module = types_mod   },
+            .{ .name = "iPlugin", .module = iplugin_mod },
+        },
+    });
+
+    const google_adk_mod = b.addModule("google_adk", .{
+        .root_source_file = b.path("src/plugins/google_adk.zig"),
+        .imports = &.{
+            .{ .name = "types",   .module = types_mod   },
+            .{ .name = "iPlugin", .module = iplugin_mod },
+        },
+    });
+
+    const crewai_mod = b.addModule("crewai", .{
+        .root_source_file = b.path("src/plugins/crewai.zig"),
+        .imports = &.{
+            .{ .name = "types",   .module = types_mod   },
+            .{ .name = "iPlugin", .module = iplugin_mod },
+        },
+    });
+
     // ── server module ─────────────────────────────────────────────────────────
     //
     // server.zig is not a standalone executable — it exports a single `serve`
@@ -107,6 +133,9 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("iPlugin",      iplugin_mod);
     exe.root_module.addImport("wrapped_agent", wrapped_agent_mod);
     exe.root_module.addImport("server",       server_mod);
+    exe.root_module.addImport("langgraph",    langgraph_mod);
+    exe.root_module.addImport("google_adk",   google_adk_mod);
+    exe.root_module.addImport("crewai",       crewai_mod);
 
     b.installArtifact(exe);
 
