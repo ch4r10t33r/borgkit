@@ -39,6 +39,9 @@ enum Command {
     /// Inspect ANR records, agents, and capabilities
     Inspect(commands::inspect::InspectArgs),
 
+    /// Generate a new agent project from templates
+    Scaffold(commands::scaffold::ScaffoldArgs),
+
     /// Print detailed version and platform information
     Version,
 }
@@ -52,6 +55,7 @@ fn main() {
         Command::Discover(args) => commands::discover::run(args),
         Command::Test(args) => commands::test::run(args),
         Command::Inspect(args) => commands::inspect::run(args),
+        Command::Scaffold(args) => commands::scaffold::run(args),
         Command::Version => commands::version::run(),
     };
     if let Err(e) = result {
