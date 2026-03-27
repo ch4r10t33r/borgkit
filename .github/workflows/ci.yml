@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: ["main", "master"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "CHANGELOG.md"
   pull_request:
     branches: ["main", "master"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "CHANGELOG.md"
 
 jobs:
   build:

@@ -5,6 +5,12 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      # Pure documentation changes never warrant a new release
+      - "**/*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "CHANGELOG.md"
 
 permissions:
   contents: write       # create GitHub releases + push version commit
