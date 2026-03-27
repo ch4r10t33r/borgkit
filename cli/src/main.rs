@@ -42,6 +42,9 @@ enum Command {
     /// Generate a new agent project from templates
     Scaffold(commands::scaffold::ScaffoldArgs),
 
+    /// Check for a newer version on npm and print the upgrade command
+    Upgrade,
+
     /// Print detailed version and platform information
     Version,
 }
@@ -56,6 +59,7 @@ fn main() {
         Command::Test(args) => commands::test::run(args),
         Command::Inspect(args) => commands::inspect::run(args),
         Command::Scaffold(args) => commands::scaffold::run(args),
+        Command::Upgrade => commands::upgrade::run(),
         Command::Version => commands::version::run(),
     };
     if let Err(e) = result {

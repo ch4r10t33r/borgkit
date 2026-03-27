@@ -5,4 +5,5 @@ pub mod inspect;
 pub mod run;
 pub mod scaffold;
 pub mod test;
+pub mod upgrade;
 pub mod version;
