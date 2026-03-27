@@ -1,9 +1,7 @@
 name: Release CLI
 
 on:
-  push:
-    tags: ["v*.*.*"]
-  workflow_dispatch:   # allow release.yml to trigger this after semantic-release
+  workflow_dispatch:   # triggered by release.yml after semantic-release creates the tag
 
 permissions:
   contents: write   # create GitHub releases
@@ -31,7 +29,7 @@ jobs:
             bin_name:  borgkit
 
           - target:    x86_64-apple-darwin
-            os:        macos-15-intel
+            os:        macos-13
             use_cross: false
             npm_pkg:   borgkit-cli-darwin-x64
             bin_name:  borgkit
