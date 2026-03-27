@@ -4,6 +4,12 @@ All notable changes to `sentrix-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0](https://github.com/ch4r10t33r/sentrix/compare/v1.19.0...v1.20.0) (2026-03-27)
+
+### Features
+
+* **cli:** add sentrix scaffold command ([e2bd80f](https://github.com/ch4r10t33r/sentrix/commit/e2bd80fc162702474ed5be0d6dad75926bfba194))
+
 ## [1.19.0](https://github.com/ch4r10t33r/sentrix/compare/v1.18.0...v1.19.0) (2026-03-27)
 
 ### Features
