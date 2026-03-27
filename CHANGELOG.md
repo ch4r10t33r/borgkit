@@ -4,6 +4,20 @@ All notable changes to `borgkit-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0](https://github.com/ch4r10t33r/borgkit/compare/v0.0.0...v0.1.0) (2026-03-27)
+
+### Features
+
+* **cli:** add borgkit upgrade command ([f7e02d2](https://github.com/ch4r10t33r/borgkit/commit/f7e02d29bd018af2a0e6ce73efadaf7b0cae85db))
+
+### Bug Fixes
+
+* fully regenerate package-lock.json from scratch (nested deps still had 0.1.0 from prior sed) ([0b713a9](https://github.com/ch4r10t33r/borgkit/commit/0b713a9a8fd97d7acd1d4fa681d95dbb520a8fcc))
+* regenerate package-lock.json after version reset (sed had clobbered all dep versions to 0.1.0) ([a199e3e](https://github.com/ch4r10t33r/borgkit/commit/a199e3ecbf7a4b1813ce1e2d7e398cb51bbff00a))
+* rename bin/sentrix.js → bin/borgkit.js to match package.json bin field ([99c1958](https://github.com/ch4r10t33r/borgkit/commit/99c1958661bcc7b87a8c3cdadc059414810351a0))
+* reset package versions to 0.1.0 for initial borgkit release ([94c4bb8](https://github.com/ch4r10t33r/borgkit/commit/94c4bb82f23451cbef7d5b47880a2309316a1449))
+* **scripts:** sync-release-versions exits 1 when Cargo.toml already at target version ([2609639](https://github.com/ch4r10t33r/borgkit/commit/2609639a2c6751439245b35ea47ae51144d19de8))
+
 ## [1.22.0](https://github.com/ch4r10t33r/borgkit/compare/v1.21.0...v1.22.0) (2026-03-27)
 
 ### Features
