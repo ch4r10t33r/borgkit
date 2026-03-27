@@ -81,12 +81,12 @@ const { message, senderDid } = await bob.unpack(encrypted);
 
 **A2A:** No payment primitive. Billing, rate limiting, and monetisation are out of scope.
 
-**Sentrix:** x402 micropayments are built in. Agents can:
-- Charge per invocation with a payment channel
-- Accept payment before running a task
-- Issue receipts verifiable on-chain
+**Sentrix:** Two complementary payment paths:
 
-This enables an open market of agent services — anyone can deploy an agent and charge for it, without integrating a separate billing system.
+- **x402** — micropayments built in. Agents can charge per invocation, accept payment before running a task, and issue receipts verifiable on-chain (USDC / ETH on Base, etc.).
+- **MPP (Machine Payments Protocol)** — explicit first-class support via the **MPP plugin** in Sentrix templates ([mpp.dev](https://mpp.dev)): HTTP **402** payment-required responses, challenge–credential–receipt flow, with **Tempo** stablecoin, **Stripe** Secure Payment Tokens (SPT), or **Lightning** depending on configuration. Ship-ready in **TypeScript**, **Rust**, and **Zig** scaffolds; Python template support is planned.
+
+This enables an open market of agent services — anyone can deploy an agent and charge for it, without integrating a separate billing system, and agents can interoperate with wallets and paymasters that speak MPP.
 
 ### 5. True Peer-to-Peer — No Public Endpoint Required
 
@@ -135,7 +135,7 @@ This matters for:
 | **Cryptographic agent identity** | ❌ Self-declared, unverified | ✅ `did:key` — keypair-derived, verifiable |
 | **Permissionless discovery** | ❌ Requires known URL or managed registry | ✅ Kademlia DHT + mDNS gossip |
 | **Capability-based routing** | ❌ You call a specific URL | ✅ Query by capability, mesh returns candidates |
-| **Payments** | ❌ Out of scope | ✅ x402 micropayments |
+| **Payments** | ❌ Out of scope | ✅ x402 micropayments · **MPP** (HTTP 402, Tempo / Stripe / Lightning) in TS, Rust, Zig templates |
 | **Agents behind NAT** | ❌ Requires public HTTP endpoint | ✅ Circuit relay via libp2p |
 | **Offline resilience** | ❌ Request fails if server down | ✅ DHT caches records, mesh reroutes |
 | **Identity attestation** | ❌ Explicitly out of scope | ✅ Signed ANR records |
@@ -164,7 +164,7 @@ This matters for:
 - You need agents to find each other without a central registry or prior URL exchange
 - You need verifiable agent identity that survives IP/domain changes
 - You need end-to-end encrypted messages between agents (not just TLS)
-- You are building a monetised agent marketplace (x402)
+- You are building a monetised agent marketplace (x402 and/or **MPP** for HTTP 402–based machine payments)
 - Your agents run behind NAT, on edge devices, or in embedded environments
 - You want one protocol that works LAN-local (mDNS) and globally (DHT) without configuration
 
@@ -176,11 +176,11 @@ Sentrix handles **discovery and identity**; A2A handles **task communication**. 
 Sentrix DHT          → finds the agent's multiaddr + DID
 DIDComm v2           → authenticates and encrypts the request
 A2A task protocol    → structures the multi-turn conversation
-x402                 → handles payment for the task
+x402 / MPP           → handles payment for the task (on-chain micropayments or MPP challenge–credential–receipt)
 ```
 
 ---
 
 ## The One-Paragraph Summary
 
-A2A is a well-designed protocol for *how* two agents communicate — it defines the message envelope, task lifecycle, and authentication delegation. It deliberately does not define how agents find each other, how they prove who they are cryptographically, how they handle end-to-end encryption, or how they get paid. Sentrix fills exactly those gaps: a Kademlia DHT for permissionless capability-based discovery, `did:key` for portable cryptographic identity, DIDComm v2 for end-to-end encrypted authenticated messaging, and x402 for built-in micropayments. If A2A is the postal standard, Sentrix is the address book, the envelope seal, and the stamp.
+A2A is a well-designed protocol for *how* two agents communicate — it defines the message envelope, task lifecycle, and authentication delegation. It deliberately does not define how agents find each other, how they prove who they are cryptographically, how they handle end-to-end encryption, or how they get paid. Sentrix fills exactly those gaps: a Kademlia DHT for permissionless capability-based discovery, `did:key` for portable cryptographic identity, DIDComm v2 for end-to-end encrypted authenticated messaging, x402 for built-in micropayments, and **MPP** ([Machine Payments Protocol](https://mpp.dev)) for standards-aligned HTTP 402 agent payments (Tempo, Stripe SPT, Lightning) in TypeScript, Rust, and Zig templates. If A2A is the postal standard, Sentrix is the address book, the envelope seal, and the stamp.

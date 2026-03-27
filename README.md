@@ -47,6 +47,7 @@ Sentrix operates primarily at **L2** and **L3**, bridging L1 identity to L4 fram
 - **P2P mesh** — libp2p + QUIC + Kademlia DHT; mDNS for LAN; circuit relay for NAT traversal
 - **DID identity** — `did:key` W3C standard out of the box; no wallet, no gas, no tokens required
 - **x402 payments** — opt-in micropayment layer; charge per capability in USDC / ETH on Base
+- **MPP payments** — [Machine Payments Protocol](https://mpp.dev) plugin; HTTP 402 challenge–credential–receipt flow with Tempo stablecoin, Stripe SPT, and Lightning support across TypeScript, Rust, and Zig
 - **Multi-language** — TypeScript, Python, Rust, Zig
 - **One CLI** — scaffold, create, run, discover
 
@@ -78,9 +79,12 @@ Sentrix operates primarily at **L2** and **L3**, bridging L1 identity to L4 fram
 | **MCP bridge (wrap MCP servers)** | ✅ | ✅ | ✅ | ✅ |
 | **MCP bridge (expose as MCP server)** | ✅ | ✅ | ✅ | ✅ |
 | **x402 micropayments** | ✅ | ✅ | ✅ | ✅ |
+| **MPP plugin ([Machine Payments Protocol](https://mpp.dev))** | 🔜 | ✅ | ✅ | ✅ |
 | **Streaming (SSE via /invoke/stream)** | ✅ | ✅ | ✅ | ✅ |
 
 **Legend:** ✅ implemented · 🔜 on roadmap · — not applicable for this language
+
+**MPP:** HTTP 402 payment gating using the MPP challenge–credential–receipt model (`MppPlugin` / `mpp` modules). Python template support is on the roadmap; use x402 or bridge via a TS/Rust/Zig agent until then.
 
 **Rust / Zig — framework plugins:** LangGraph, Google ADK, and CrewAI are Python/JS frameworks with no native Rust or Zig SDKs. The Rust and Zig plugins are **HTTP bridge adapters** that call a running service endpoint (e.g. `adk web`, a LangServe app, or a FastAPI-wrapped CrewAI crew) so the agent participates in the Sentrix mesh without embedding a Python interpreter.
 

@@ -169,7 +169,7 @@ SentriX is the **internet protocol layer** that connects them.
 |---|---|---|
 | **Transport** | HTTP(S) JSON-RPC — fixed URLs | libp2p P2P mesh — no fixed addresses |
 | **Discovery** | Agent Card at known URL (pull) | Gossip-based — agents announce, peers propagate |
-| **Payments** | Not in scope | x402 native, per-capability pricing |
+| **Payments** | Not in scope | x402 native, per-capability pricing; **MPP** ([Machine Payments Protocol](https://mpp.dev)) plugins in TypeScript, Rust, and Zig (HTTP 402, Tempo / Stripe SPT / Lightning) |
 | **Framework wrapping** | Implement A2A protocol directly in your agent | Plugin system — wrap any existing agent without rewriting |
 | **MCP interop** | No | Bidirectional MCP bridge |
 | **Task lifecycle** | Formal (submitted → working → complete) | Request/response + streaming, no formal task state machine |
@@ -203,6 +203,5 @@ one line, with capabilities extracted automatically from the framework's own met
 
 **4. Payments as a first-class primitive**
 
-A2A has deferred payments to a future roadmap. Sentrix has x402 gating built into every `POST /invoke`
-from day one — capabilities become billable services without additional infrastructure.
+A2A has deferred payments to a future roadmap. Sentrix has **x402** gating for on-chain micropayments and, separately, **MPP (Machine Payments Protocol)** support via plugins in the TypeScript, Rust, and Zig templates — HTTP 402 challenge–credential–receipt flows with Tempo stablecoin, Stripe Secure Payment Tokens, or Lightning ([mpp.dev](https://mpp.dev)). Capabilities become billable services without inventing a custom payment protocol.
 
