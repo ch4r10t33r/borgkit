@@ -4,6 +4,12 @@ All notable changes to `borgkit-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0](https://github.com/ch4r10t33r/borgkit/compare/v1.21.0...v1.22.0) (2026-03-27)
+
+### Features
+
+* **cli:** add borgkit upgrade command ([f7e02d2](https://github.com/ch4r10t33r/borgkit/commit/f7e02d29bd018af2a0e6ce73efadaf7b0cae85db))
+
 ## [1.22.1](https://github.com/ch4r10t33r/borgkit/compare/v1.22.0...v1.22.1) (2026-03-27)
 
 ### Bug Fixes
